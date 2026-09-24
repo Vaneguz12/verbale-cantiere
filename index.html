@@ -103,7 +103,7 @@
   .review-item:last-child{border-bottom:none;}
   .review-q{font-size:12px; color:var(--muted); font-weight:600;}
   .review-a{font-size:15px; margin-top:2px; white-space:pre-wrap;}
-  .final-icon{font-size:44px; text-align:center; margin-bottom:6px;}
+  .final-icon{display:flex; justify-content:center; margin-bottom:10px; color:var(--text);}
   .final-title{font-size:19px; font-weight:800; text-align:center; margin-bottom:4px;}
   .final-sub{font-size:13px; color:var(--muted); text-align:center; margin-bottom:18px;}
   .signer-card{border:1.5px solid var(--border); border-radius:13px; padding:14px; margin-bottom:14px; position:relative;}
@@ -120,7 +120,7 @@
     <h1>Verbale di Cantiere</h1>
     <p>Diametro Zero — Studio Tecnico</p>
   </div>
-  <button class="gear-btn" id="gearBtn" title="Impostazioni AI">⚙️</button>
+  <button class="gear-btn" id="gearBtn" title="Impostazioni AI"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.4-2-3.4-2.3.9a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-4l-.5 2.6a7.6 7.6 0 0 0-2.6 1.5l-2.3-.9-2 3.4 2 1.4a7.6 7.6 0 0 0 0 3l-2 1.4 2 3.4 2.3-.9c.77.66 1.65 1.17 2.6 1.5l.5 2.6h4l.5-2.6a7.6 7.6 0 0 0 2.6-1.5l2.3.9 2-3.4-2-1.4Z"/></svg></button>
 </div>
 <div class="progress-wrap"><div class="progress-track"><div class="progress-fill" id="progressFill"></div></div></div>
 
@@ -134,24 +134,30 @@ const pad = n => String(n).padStart(2,"0");
 const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
 const nowStr = `${pad(today.getHours())}:${pad(today.getMinutes())}`;
 
+// Icone monocromatiche riutilizzate in tutta l'app (nessuna emoji)
+const ICON_MIC = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/><path d="M8.5 21h7"/></svg>`;
+const ICON_GEAR = `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.4-2-3.4-2.3.9a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-4l-.5 2.6a7.6 7.6 0 0 0-2.6 1.5l-2.3-.9-2 3.4 2 1.4a7.6 7.6 0 0 0 0 3l-2 1.4 2 3.4 2.3-.9c.77.66 1.65 1.17 2.6 1.5l.5 2.6h4l.5-2.6a7.6 7.6 0 0 0 2.6-1.5l2.3.9 2-3.4-2-1.4Z"/></svg>`;
+const ICON_MAIL = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/></svg>`;
+const ICON_CHECK = `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M8 12.3l2.6 2.6 5.4-5.6"/></svg>`;
+
 const steps = [
   {type:"choice", id:"tipoVerbale", label:"Tipo di verbale", question:"Verbale di:",
     options:["Sopralluogo in cantiere (D.L.)","Sopralluogo in cantiere (C.S.P.-C.S.E.)","Riunione di coordinamento"], allowOther:true},
 
+  {type:"text", id:"committente", label:"Committente", question:"Committente e responsabile dei lavori"},
+  {type:"address", id:"indirizzo", label:"Cantiere", question:"Indirizzo cantiere"},
+
   {type:"group", id:"datiVerbale", label:"Dati verbale", question:"Dati del verbale", fields:[
-    {id:"numero", label:"Verbale di sopralluogo N°", type:"text"},
+    {id:"numero", label:"Verbale di sopralluogo N°", type:"text", def: ()=> suggestNumero(answers.committente)},
     {id:"data", label:"Data", type:"date", def: todayStr},
     {id:"ora", label:"Ora inizio (hh:mm)", type:"text", def: nowStr}
   ]},
 
   {type:"group", id:"redattore", label:"Chi redige", question:"Chi effettua il sopralluogo", fields:[
-    {id:"direzioneLavori", label:"Direzione Lavori (nome, se applicabile)", type:"text"},
-    {id:"coordinatoreSicurezza", label:"Coordinatore della Sicurezza C.S.P.-C.S.E. (nome, se applicabile)", type:"text"},
-    {id:"professionisti", label:"Altri professionisti intervenuti nel verbale", type:"text"}
+    {id:"direzioneLavori", label:"Direzione Lavori", type:"text", suggest:"direttori", def: ()=> (allDirettori()[0]||"")},
+    {id:"coordinatoreSicurezza", label:"Coordinatore della Sicurezza C.S.P.-C.S.E.", type:"text", suggest:"coordinatori", def: ()=> (allCoordinatori()[0]||"")},
+    {id:"professionisti", label:"Altri professionisti intervenuti nel verbale", type:"text", suggest:"professionisti"}
   ]},
-
-  {type:"text", id:"committente", label:"Committente", question:"Committente e responsabile dei lavori"},
-  {type:"text", id:"indirizzo", label:"Cantiere", question:"Indirizzo cantiere"},
 
   {type:"dyntable", id:"imprese", label:"Presenti", question:"Erano presenti (imprese e persone)", columns:[
     {id:"nome", label:"Nome impresa"},
@@ -211,11 +217,18 @@ function render(){
     } else {
       inner += `<input type="text" id="field" value="${answers[s.id]||''}">`;
     }
+  } else if(s.type==="address"){
+    inner += `<input type="text" id="field" autocomplete="off" placeholder="Inizia a scrivere l'indirizzo..." value="${answers[s.id]||''}">
+    <p class="hint" id="addrHint">Ricerca automatica con Google Maps, se configurata in Impostazioni.</p>`;
   } else if(s.type==="group"){
     inner += s.fields.map(f=>{
-      const val = answers[f.id] !== undefined ? answers[f.id] : (f.def||"");
+      let val = answers[f.id];
+      if(val === undefined) val = typeof f.def==="function" ? f.def() : (f.def||"");
       if(f.type==="date"){
         return `<label class="field-label">${f.label}</label><input type="date" id="gf_${f.id}" value="${val}">`;
+      }
+      if(f.suggest){
+        return `<label class="field-label">${f.label}</label><div class="sugg-wrap"><input type="text" autocomplete="off" id="gf_${f.id}" value="${val}"><div class="sugg-box" id="sugg_${f.id}"></div></div>`;
       }
       return `<label class="field-label">${f.label}</label><input type="text" id="gf_${f.id}" value="${val}">`;
     }).join("");
@@ -235,13 +248,13 @@ function render(){
       <button class="yn-btn ${v==='No'?'sel-no':''}" data-v="No">No</button>
     </div>`;
   } else if(s.type==="voice"){
-    inner += `<div class="field-mic-row"><textarea id="field" placeholder="Scrivi, oppure detta con il microfono...">${answers[s.id]||''}</textarea><button type="button" class="mic-icon-btn" data-mic="field" title="Detta">🎙️</button></div>
-    <div class="polish-row"><button type="button" class="polish-btn" id="polishBtn">✨ Migliora con AI</button><span class="hint" id="polishHint"></span></div>`;
+    inner += `<div class="field-mic-row"><textarea id="field" placeholder="Scrivi, oppure detta con il microfono...">${answers[s.id]||''}</textarea><button type="button" class="mic-icon-btn" data-mic="field" title="Detta">${ICON_MIC}</button></div>
+    <div class="polish-row"><button type="button" class="polish-btn" id="polishBtn">Migliora con AI</button><span class="hint" id="polishHint"></span></div>`;
   } else if(s.type==="checktext"){
     const on = !!answers[s.id+"_on"];
     inner += `<div class="checkbox-row ${on?'on':''}" id="ctBox"><div class="box">${on?'✓':''}</div><div>${s.checkboxLabel}</div></div>`;
-    inner += `<div class="field-mic-row" style="display:${on?'flex':'none'}" id="ctFieldRow"><textarea id="field" placeholder="Dettagli (se applicabile)...">${answers[s.id]||''}</textarea><button type="button" class="mic-icon-btn" data-mic="field" title="Detta">🎙️</button></div>
-    <div class="polish-row" style="display:${on?'flex':'none'}"><button type="button" class="polish-btn" id="polishBtn">✨ Migliora con AI</button><span class="hint" id="polishHint"></span></div>`;
+    inner += `<div class="field-mic-row" style="display:${on?'flex':'none'}" id="ctFieldRow"><textarea id="field" placeholder="Dettagli (se applicabile)...">${answers[s.id]||''}</textarea><button type="button" class="mic-icon-btn" data-mic="field" title="Detta">${ICON_MIC}</button></div>
+    <div class="polish-row" style="display:${on?'flex':'none'}"><button type="button" class="polish-btn" id="polishBtn">Migliora con AI</button><span class="hint" id="polishHint"></span></div>`;
   } else if(s.type==="dyntable"){
     inner += `<div id="rowsBox"></div><button class="add-row-btn" id="addRowBtn">+ Aggiungi impresa/persona</button>`;
   } else if(s.type==="photos"){
@@ -311,6 +324,28 @@ function wireStep(s){
     });
   }
 
+  if(s.type==="address"){
+    setupAddressField();
+  }
+
+  if(s.type==="group"){
+    s.fields.filter(f=>f.suggest).forEach(f=>{
+      const input = document.getElementById("gf_"+f.id);
+      const box = document.getElementById("sugg_"+f.id);
+      if(!input || !box) return;
+      if(f.suggest==="professionisti"){
+        wireSuggest(input, box, allProfessionisti(), p=>`${p.nome} — ${p.ruolo}`, (picked)=>{
+          const cur = input.value.trim();
+          const toAdd = `${picked.nome} (${picked.ruolo})`;
+          input.value = cur ? cur+", "+toAdd : toAdd;
+        });
+      } else {
+        const list = f.suggest==="direttori" ? allDirettori() : allCoordinatori();
+        wireSuggest(input, box, list, name=>name, (picked)=>{ input.value = picked; });
+      }
+    });
+  }
+
   if(s.type==="checktext"){
     document.getElementById("ctBox").addEventListener("click", ()=>{
       answers[s.id+"_on"] = !answers[s.id+"_on"];
@@ -352,7 +387,7 @@ function wireStep(s){
 }
 
 function onNext(s){
-  if(s.type==="text" || s.type==="voice" || s.type==="checktext"){
+  if(s.type==="text" || s.type==="address" || s.type==="voice" || s.type==="checktext"){
     answers[s.id] = document.getElementById("field").value.trim();
   }
   if(s.type==="group"){
@@ -374,31 +409,94 @@ function onNext(s){
 }
 
 // ---------- Anagrafica: memoria locale automatica + Google Sheet opzionale ----------
-let sheetAnagrafica = { clienti: [], imprese: [] }; // dal CSV, se configurato
+let sheetAnagrafica = { clienti: [], imprese: [], direttori: [], coordinatori: [], professionisti: [] }; // dal CSV, se configurato
 
 function localAnagrafica(){
-  try{ return JSON.parse(localStorage.getItem("verbaleAnagrafica")||'{"clienti":[],"imprese":[]}'); }
-  catch(e){ return {clienti:[], imprese:[]}; }
+  const def = {clienti:[], imprese:[], direttori:[], coordinatori:[]};
+  try{ return Object.assign(def, JSON.parse(localStorage.getItem("verbaleAnagrafica")||"{}")); }
+  catch(e){ return def; }
 }
 function saveLocalAnagrafica(a){ localStorage.setItem("verbaleAnagrafica", JSON.stringify(a)); }
 
-// da chiamare quando il verbale viene completato: ricorda cliente e imprese per la prossima volta
+function rememberName(list, name){
+  if(!name) return list;
+  const idx = list.findIndex(n=>n.toLowerCase()===name.toLowerCase());
+  if(idx>=0) list.splice(idx,1);
+  list.unshift(name);
+  return list.slice(0,20);
+}
+
+// contatore verbali per cliente (solo su questo dispositivo)
+function getContatori(){
+  try{ return JSON.parse(localStorage.getItem("verbaleContatori")||"{}"); }catch(e){ return {}; }
+}
+function suggestNumero(cliente){
+  if(!cliente) return "";
+  const c = getContatori();
+  const key = cliente.trim().toLowerCase();
+  return String((c[key]||0)+1);
+}
+function bumpContatore(){
+  if(!answers.committente) return;
+  const c = getContatori();
+  const key = answers.committente.trim().toLowerCase();
+  const numVal = parseInt(answers.numero, 10);
+  const current = c[key]||0;
+  c[key] = isNaN(numVal) ? current+1 : Math.max(current, numVal);
+  localStorage.setItem("verbaleContatori", JSON.stringify(c));
+}
+
+// da chiamare quando il verbale viene completato: ricorda cliente, imprese, direttore e coordinatore
 function rememberAnagrafica(){
   const a = localAnagrafica();
+  let clienteNuovo = false, impreseNuove = [];
+
   if(answers.committente){
-    const idx = a.clienti.findIndex(c=>c.cliente.toLowerCase()===answers.committente.toLowerCase());
+    const key = answers.committente.toLowerCase();
+    const giaNoto = a.clienti.some(c=>c.cliente.toLowerCase()===key) || sheetAnagrafica.clienti.some(c=>c.cliente.toLowerCase()===key);
+    clienteNuovo = !giaNoto;
+    const idx = a.clienti.findIndex(c=>c.cliente.toLowerCase()===key);
     const entry = {cliente:answers.committente, indirizzo:answers.indirizzo||""};
     if(idx>=0) a.clienti[idx]=entry; else a.clienti.unshift(entry);
     a.clienti = a.clienti.slice(0,50);
   }
   imprese.forEach(r=>{
     if(!r.nome) return;
-    const idx = a.imprese.findIndex(x=>x.impresa.toLowerCase()===r.nome.toLowerCase());
+    const key = r.nome.toLowerCase();
+    const giaNota = a.imprese.some(x=>x.impresa.toLowerCase()===key) || sheetAnagrafica.imprese.some(x=>x.impresa.toLowerCase()===key);
+    if(!giaNota) impreseNuove.push({impresa:r.nome, titolare:r.titolare||""});
+    const idx = a.imprese.findIndex(x=>x.impresa.toLowerCase()===key);
     const entry = {impresa:r.nome, titolare:r.titolare||""};
     if(idx>=0) a.imprese[idx]=entry; else a.imprese.unshift(entry);
   });
   a.imprese = a.imprese.slice(0,80);
+
+  a.direttori = rememberName(a.direttori, answers.direzioneLavori);
+  a.coordinatori = rememberName(a.coordinatori, answers.coordinatoreSicurezza);
+
   saveLocalAnagrafica(a);
+  bumpContatore();
+
+  // scrittura opzionale sul Google Sheet (nuovi contatti soltanto)
+  if(clienteNuovo && answers.committente){
+    pushToSheet("cliente", {cliente:answers.committente, indirizzo:answers.indirizzo||""});
+  }
+  impreseNuove.forEach(r=> pushToSheet("impresa", {impresa:r.impresa, titolare:r.titolare}));
+}
+
+async function pushToSheet(type, data){
+  const cfg = getSettings();
+  if(!cfg.sheetWriteUrl) return;
+  try{
+    await fetch(cfg.sheetWriteUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {"Content-Type": "text/plain;charset=utf-8"},
+      body: JSON.stringify({type, ...data})
+    });
+  }catch(e){
+    console.warn("Anagrafica: non sono riuscito a salvare sul Google Sheet.", e);
+  }
 }
 
 function parseCSV(text){
@@ -425,11 +523,14 @@ async function loadAnagraficaSheet(){
   const cfg = getSettings();
   if(!cfg.sheetUrl) return;
   try{
-    const res = await fetch(cfg.sheetUrl);
+    const res = await fetch(cfg.sheetUrl, {cache:"no-store"});
     const text = await res.text();
     const rows = parseCSV(text);
     sheetAnagrafica.clienti = rows.filter(r=>r.cliente).map(r=>({cliente:r.cliente, indirizzo:r.indirizzo||""}));
     sheetAnagrafica.imprese = rows.filter(r=>r.impresa).map(r=>({impresa:r.impresa, titolare:r.titolare||""}));
+    sheetAnagrafica.direttori = [...new Set(rows.filter(r=>r.direttore).map(r=>r.direttore))];
+    sheetAnagrafica.coordinatori = [...new Set(rows.filter(r=>r.coordinatore).map(r=>r.coordinatore))];
+    sheetAnagrafica.professionisti = rows.filter(r=>r.ruolo && r.professionista).map(r=>({ruolo:r.ruolo, nome:r.professionista}));
   }catch(e){
     console.warn("Anagrafica: non sono riuscito a leggere il Google Sheet.", e);
   }
@@ -448,6 +549,20 @@ function allImprese(){
   const seen = new Set(); const out = [];
   merged.forEach(c=>{ const k=c.impresa.toLowerCase(); if(!seen.has(k)){ seen.add(k); out.push(c); } });
   return out;
+}
+function allDirettori(){
+  const local = localAnagrafica().direttori || [];
+  const merged = [...local, ...(sheetAnagrafica.direttori||[])];
+  return [...new Set(merged)];
+}
+function allCoordinatori(){
+  const local = localAnagrafica().coordinatori || [];
+  const merged = [...local, ...(sheetAnagrafica.coordinatori||[])];
+  return [...new Set(merged)];
+}
+function allProfessionisti(){
+  // rubrica ruolo -> nome (es. Geometra, Architetto...), solo dal Google Sheet
+  return sheetAnagrafica.professionisti || [];
 }
 
 // dropdown generico riusabile per suggerimenti anagrafica
@@ -472,6 +587,45 @@ function wireSuggest(inputEl, boxEl, list, labelFn, onPick){
   inputEl.addEventListener("blur", ()=> setTimeout(()=>boxEl.classList.remove("show"),200));
 }
 
+// ---------- Indirizzo: ricerca automatica con Google Maps (opzionale) ----------
+let mapsLoadPromise = null;
+function loadGoogleMapsScript(key){
+  if(window.google && window.google.maps && window.google.maps.places) return Promise.resolve();
+  if(mapsLoadPromise) return mapsLoadPromise;
+  mapsLoadPromise = new Promise((resolve, reject)=>{
+    const s = document.createElement("script");
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places`;
+    s.onload = ()=> resolve();
+    s.onerror = ()=> reject(new Error("maps-load-failed"));
+    document.head.appendChild(s);
+  });
+  return mapsLoadPromise;
+}
+async function setupAddressField(){
+  const input = document.getElementById("field");
+  const hint = document.getElementById("addrHint");
+  const cfg = getSettings();
+  if(!input) return;
+  if(!cfg.mapsKey){
+    if(hint) hint.textContent = "Configura la chiave Google Maps in Impostazioni per la ricerca automatica.";
+    return;
+  }
+  try{
+    await loadGoogleMapsScript(cfg.mapsKey);
+    const ac = new google.maps.places.Autocomplete(input, {types:["address"]});
+    ac.addListener("place_changed", ()=>{
+      const place = ac.getPlace();
+      if(place && place.formatted_address){
+        input.value = place.formatted_address;
+        answers.indirizzo = place.formatted_address;
+      }
+    });
+    if(hint) hint.textContent = "";
+  }catch(e){
+    if(hint) hint.textContent = "Non sono riuscito a caricare Google Maps. Scrivi l'indirizzo manualmente.";
+  }
+}
+
 // ---------- Impostazioni: chiave Gemini (salvata solo in locale, mai nel codice) ----------
 function getSettings(){
   try{ return JSON.parse(localStorage.getItem("verbaleSettings")||"{}"); }catch(e){ return {}; }
@@ -491,10 +645,20 @@ function openSettings(){
       <input type="password" id="setKey" placeholder="AIzaSy..." value="${cur.geminiKey||''}">
       <label class="field-label">Modello (opzionale)</label>
       <input type="text" id="setModel" placeholder="gemini-2.5-flash" value="${cur.geminiModel||''}">
+
       <h3 style="margin-top:22px;">Anagrafica (opzionale)</h3>
-      <p class="hint">Incolla il link "pubblicato sul web" (formato CSV) del tuo Google Sheet con clienti e imprese conosciute. Colonne consigliate: cliente, indirizzo, impresa, titolare.</p>
-      <label class="field-label">URL Google Sheet (CSV)</label>
+      <p class="hint">Link "pubblicato sul web" (formato CSV) del tuo Google Sheet. Colonne riconosciute: cliente, indirizzo, impresa, titolare, direttore, coordinatore. Puoi continuare a modificare il foglio quando vuoi: la app rilegge i dati aggiornati a ogni apertura.</p>
+      <label class="field-label">URL Google Sheet (CSV, lettura)</label>
       <input type="text" id="setSheet" placeholder="https://docs.google.com/.../pub?output=csv" value="${cur.sheetUrl||''}">
+      <label class="field-label">URL Apps Script (scrittura, opzionale)</label>
+      <input type="text" id="setSheetWrite" placeholder="https://script.google.com/macros/s/.../exec" value="${cur.sheetWriteUrl||''}">
+      <p class="hint">Se configurato, i nuovi clienti/imprese vengono salvati automaticamente anche nel tuo Google Sheet, non solo su questo dispositivo. Richiede un piccolo Apps Script — chiedimi come crearlo.</p>
+
+      <h3 style="margin-top:22px;">Indirizzi (opzionale)</h3>
+      <p class="hint">Chiave Google Maps per la ricerca automatica degli indirizzi mentre scrivi. Va creata su console.cloud.google.com (API "Places API"), con fatturazione attiva sul progetto.</p>
+      <label class="field-label">Google Maps API key</label>
+      <input type="password" id="setMaps" placeholder="AIzaSy..." value="${cur.mapsKey||''}">
+
       <div class="nav-row" style="margin-top:16px;">
         <button class="btn btn-ghost" id="setClose">Chiudi</button>
         <button class="btn btn-primary" id="setSave">Salva</button>
@@ -507,7 +671,9 @@ function openSettings(){
     saveSettings({
       geminiKey: document.getElementById("setKey").value.trim(),
       geminiModel: document.getElementById("setModel").value.trim() || "gemini-2.5-flash",
-      sheetUrl: document.getElementById("setSheet").value.trim()
+      sheetUrl: document.getElementById("setSheet").value.trim(),
+      sheetWriteUrl: document.getElementById("setSheetWrite").value.trim(),
+      mapsKey: document.getElementById("setMaps").value.trim()
     });
     wrap.remove();
     loadAnagraficaSheet();
@@ -539,7 +705,7 @@ function wirePolishButton(){
     const field = document.getElementById("field");
     const raw = field.value.trim();
     if(!raw){ hint.textContent = "Scrivi o detta prima qualcosa."; return; }
-    btn.disabled = true; btn.textContent = "✨ Miglioro...";
+    btn.disabled = true; btn.textContent = "Miglioro in corso...";
     hint.textContent = "";
     try{
       const polished = await polishWithGemini(raw);
@@ -548,12 +714,12 @@ function wirePolishButton(){
       hint.textContent = "Testo migliorato con Gemini.";
     }catch(e){
       if(e.message === "no-key"){
-        hint.textContent = "Configura la tua chiave Gemini in ⚙️ Impostazioni (in alto) per usare questa funzione.";
+        hint.textContent = "Configura la tua chiave Gemini in Impostazioni (icona in alto) per usare questa funzione.";
       } else {
         hint.textContent = "Non sono riuscito a contattare Gemini. Riprova, o continua a scrivere manualmente.";
       }
     }
-    btn.disabled = false; btn.textContent = "✨ Migliora con AI";
+    btn.disabled = false; btn.textContent = "Migliora con AI";
   });
 }
 
@@ -831,141 +997,6 @@ function fakeSig(doc,x,y,seed){
   doc.setTextColor(0); doc.setLineWidth(0.2);
 }
 
-/* ================= STILE A — Modulo Ufficiale ================= */
-function styleA(){
-  const doc=newDoc(); const M=14, W=PW-M*2; let y=M;
-  doc.setLineWidth(0.3); doc.setDrawColor(0);
-
-  // Header box
-  const hH=30;
-  doc.rect(M,y,W,hH);
-  doc.line(M+44,y,M+44,y+hH);
-  doc.addImage(LOGO,"PNG",M+8,y+4,28,22);
-  doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(0);
-  doc.text("VERBALE DI:", M+48, y+6.5);
-  doc.setFont("helvetica","normal"); doc.setFontSize(8.5);
-  const tipi=["Sopralluogo in cantiere (D.L.)","Sopralluogo in cantiere (C.S.P.-C.S.E.)","Riunione di coordinamento"];
-  tipi.forEach((t,i)=>{
-    const by=y+10.5+i*5.5;
-    doc.rect(M+48,by,3.2,3.2);
-    if(t===D.tipo){ doc.setFont("helvetica","bold"); doc.setFontSize(7); doc.text("X",M+48.7,by+2.6); doc.setFont("helvetica","normal"); doc.setFontSize(8.5);}
-    doc.text(t, M+53.5, by+2.7);
-  });
-  y+=hH;
-
-  function boxRow(h){ doc.rect(M,y,W,h); const top=y; y+=h; return top; }
-  function lab(t,x,ty,size=8.5,bold=true){ doc.setFont("helvetica",bold?"bold":"normal"); doc.setFontSize(size); doc.setTextColor(0); doc.text(t,x,ty); }
-  function val(t,x,ty,size=8.5){ doc.setFont("helvetica","normal"); doc.setFontSize(size); doc.setTextColor(45); doc.text(t||"—",x,ty); doc.setTextColor(0); }
-
-  // N / data / ora
-  let t=boxRow(9);
-  lab("VERBALE N°:",M+3,t+6); val(D.numero,M+27,t+6);
-  lab("DATA:",M+62,t+6); val(D.data,M+75,t+6);
-  lab("ORA:",M+110,t+6); val(D.ora,M+121,t+6);
-
-  // DL / CSE / professionisti
-  t=boxRow(17);
-  doc.line(M+95,t,M+95,t+17);
-  doc.rect(M+3,t+3.5,3.2,3.2); if(D.dl){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.text("X",M+3.7,t+6.1);}
-  lab("DIREZIONE LAVORI:",M+8.5,t+6.3,8);
-  val(D.dl,M+8.5,t+11,8);
-  doc.rect(M+3,t+11.5,3.2,3.2); if(D.cse){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.text("X",M+3.7,t+14.1);}
-  lab("COORD. SICUREZZA (C.S.P.-C.S.E.):",M+8.5,t+14.3,7.5);
-  val(D.cse,M+8.5,t+18.6>t+17? t+16.6 : t+16.6,7.5);
-  lab("PROFESSIONISTI INTERVENUTI:",M+98,t+6.3,8);
-  val(D.professionisti,M+98,t+11,8);
-
-  t=boxRow(9);
-  lab("COMMITTENTE e RESPONSABILE DEI LAVORI:",M+3,t+6,8);
-  val(D.committente,M+78,t+6,8);
-
-  t=boxRow(9);
-  lab("INDIRIZZO CANTIERE:",M+3,t+6,8);
-  val(D.indirizzo,M+42,t+6,8);
-
-  // Tabella presenti
-  t=boxRow(7);
-  lab("ERANO PRESENTI",M+3,t+5,8.5);
-  const cw=[86,70,26];
-  t=boxRow(6.5);
-  doc.line(M+cw[0],t,M+cw[0],t+6.5); doc.line(M+cw[0]+cw[1],t,M+cw[0]+cw[1],t+6.5);
-  doc.setFont("helvetica","bolditalic"); doc.setFontSize(8); doc.setTextColor(0);
-  doc.text("Nome impresa",M+3,t+4.5);
-  doc.text("Nome Titolare / Preposto",M+cw[0]+3,t+4.5);
-  doc.text("N° Addetti",M+cw[0]+cw[1]+3,t+4.5);
-  D.imprese.forEach(r=>{
-    const rt=boxRow(7);
-    doc.line(M+cw[0],rt,M+cw[0],rt+7); doc.line(M+cw[0]+cw[1],rt,M+cw[0]+cw[1],rt+7);
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(30);
-    doc.text(r.n,M+3,rt+4.8); doc.text(r.t,M+cw[0]+3,rt+4.8); doc.text(r.a,M+cw[0]+cw[1]+9,rt+4.8);
-  });
-  doc.setTextColor(0);
-
-  // Lavorazioni
-  function textBlock(title, body, minLines){
-    doc.setFont("helvetica","normal"); doc.setFontSize(8.5);
-    const lines=doc.splitTextToSize(body||"—", W-8);
-    const h = 7 + Math.max(lines.length,minLines||1)*4.4 + 3;
-    if(y+h>PH-18){ doc.addPage(); y=M; }
-    const tt=boxRow(h);
-    lab(title,M+3,tt+5.2,8.5);
-    doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(35);
-    doc.text(lines,M+3,tt+10); doc.setTextColor(0);
-  }
-  textBlock("DESCRIZIONE DELLE LAVORAZIONI IN CORSO:", D.lavorazioni, 3);
-
-  // SI/NO
-  function ynRow(label,v){
-    const tt=boxRow(8);
-    lab(label,M+3,tt+5.4,8);
-    const x=M+W-34;
-    doc.setFont("helvetica",v==="Sì"?"bold":"normal");
-    doc.rect(x,tt+2.4,3.2,3.2); if(v==="Sì"){doc.setFontSize(7);doc.text("X",x+0.7,tt+5);}
-    doc.setFontSize(8); doc.setFont("helvetica","normal"); doc.text("SI",x+5,tt+5.2);
-    const x2=x+15;
-    doc.rect(x2,tt+2.4,3.2,3.2); if(v==="No"){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.text("X",x2+0.7,tt+5);doc.setFont("helvetica","normal");doc.setFontSize(8);}
-    doc.text("NO",x2+5,tt+5.2);
-  }
-  ynRow("PRESENZA DELLA DOCUMENTAZIONE RICHIESTA IN CANTIERE:", D.doc);
-  ynRow("RISPETTO DELL'ORGANIZZAZIONE DEL CANTIERE COME INDICATO:", D.org);
-  ynRow("RISPETTO DELLE MODALITÀ OPERATIVE ED USO DEI DPI:", D.dpi);
-
-  textBlock("EVENTUALI SEGNALAZIONI O RICHIESTE DI AZIONI CORRETTIVE:", D.segnalazioni, 3);
-  textBlock("SOSPENSIONE DEI LAVORI PER PERICOLO GRAVE ED IMMINENTE (art. 92 c.1 lett. f, D.Lgs. 81/08):", D.sospensione, 2);
-  textBlock("RIPRESA DEI LAVORI SOSPESI PER PERICOLO GRAVE ED IMMINENTE:", D.ripresa, 2);
-  textBlock("NOTE, VARIE ED EVENTUALI:", D.note, 3);
-  ynRow("SONO STATE EFFETTUATE FOTO DURANTE IL SOPRALLUOGO:", D.foto);
-
-  // Firme
-  if(y+70>PH-18){ doc.addPage(); y=M; }
-  let ft=boxRow(7);
-  doc.setFont("helvetica","bold"); doc.setFontSize(8.5);
-  doc.text("FIRMA PER RICEVUTA COMUNICAZIONE",M+W/2,ft+5,{align:"center"});
-  const fcw=[66,62,54];
-  ft=boxRow(6.5);
-  doc.line(M+fcw[0],ft,M+fcw[0],ft+6.5); doc.line(M+fcw[0]+fcw[1],ft,M+fcw[0]+fcw[1],ft+6.5);
-  doc.setFont("helvetica","bolditalic"); doc.setFontSize(8);
-  doc.text("Nome / Impresa",M+3,ft+4.5); doc.text("Ruolo",M+fcw[0]+3,ft+4.5); doc.text("Firma",M+fcw[0]+fcw[1]+3,ft+4.5);
-  D.firmatari.forEach((f,i)=>{
-    const rt=boxRow(15);
-    doc.line(M+fcw[0],rt,M+fcw[0],rt+15); doc.line(M+fcw[0]+fcw[1],rt,M+fcw[0]+fcw[1],rt+15);
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(25);
-    doc.text(f.n,M+3,rt+9);
-    doc.setTextColor(70); doc.setFontSize(7.5);
-    doc.text(doc.splitTextToSize(f.r,fcw[1]-6),M+fcw[0]+3,rt+8);
-    doc.setTextColor(0);
-    fakeSig(doc,M+fcw[0]+fcw[1]+6,rt+2,i+1);
-  });
-
-  const ct=boxRow(9);
-  doc.setFont("helvetica","bold"); doc.setFontSize(8);
-  doc.text("DATA:",M+3,ct+6); doc.setFont("helvetica","normal"); doc.text(D.dataFine,M+16,ct+6);
-  doc.setFont("helvetica","bold"); doc.text("IL SOPRALLUOGO SI È CONCLUSO ALLE ORE:",M+70,ct+6);
-  doc.setFont("helvetica","normal"); doc.text(D.oraFine,M+152,ct+6);
-
-  photoPages(doc); footer(doc); return doc;
-}
-
 /* ================= STILE B — Report Professionale ================= */
 function styleB(){
   const doc=newDoc(); const M=18, W=PW-M*2; let y=0;
@@ -1104,121 +1135,6 @@ function styleB(){
   photoPages(doc); footer(doc); return doc;
 }
 
-/* ================= STILE C — Compatto Tabellare ================= */
-function styleC(){
-  const doc=newDoc(); const M=16, W=PW-M*2, LW=62; let y=M;
-
-  doc.setDrawColor(30); doc.setLineWidth(0.5);
-  doc.rect(M,y,W,26);
-  doc.addImage(LOGO,"PNG",M+4,y+3,20,20);
-  doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(20);
-  doc.text("VERBALE DI CANTIERE",M+30,y+10);
-  doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(80);
-  doc.text(D.tipo,M+30,y+15.5);
-  doc.setFontSize(7); doc.setTextColor(130);
-  doc.text(CONTACT,M+30,y+21);
-  doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(20);
-  doc.text("N° "+D.numero,PW-M-4,y+10,{align:"right"});
-  doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(80);
-  doc.text(D.data+" · "+D.ora,PW-M-4,y+15.5,{align:"right"});
-  y+=32;
-  doc.setLineWidth(0.25);
-
-  function sect(t){
-    if(y+12>PH-18){doc.addPage();y=M;}
-    doc.setFillColor(28,30,36); doc.rect(M,y,W,6.6,"F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(255);
-    doc.text(t.toUpperCase(),M+3,y+4.6);
-    y+=6.6;
-  }
-  function row(l,v,badge,alert){
-    doc.setFont("helvetica","normal"); doc.setFontSize(8.4);
-    const filled = !!(v && String(v).trim());
-    const isAlert = alert && filled;
-    const lines=doc.splitTextToSize(filled? String(v) : "—",W-LW-6);
-    const h=Math.max(7.5, lines.length*4.3+3.4);
-    if(y+h>PH-18){doc.addPage();y=M;}
-    if(isAlert){
-      doc.setFillColor(254,242,242); doc.rect(M,y,W,h,"F");
-      doc.setFillColor(252,226,226); doc.rect(M,y,LW,h,"F");
-      doc.setDrawColor(220,38,38);
-    } else {
-      doc.setFillColor(247,248,249); doc.rect(M,y,LW,h,"F");
-      doc.setDrawColor(215);
-    }
-    doc.rect(M,y,W,h); doc.line(M+LW,y,M+LW,y+h);
-    if(isAlert){ doc.setFillColor(220,38,38); doc.rect(M,y,1.8,h,"F"); }
-    doc.setFont("helvetica","bold"); doc.setFontSize(7.4);
-    doc.setTextColor(isAlert?185:85, isAlert?28:85, isAlert?28:85);
-    doc.text(doc.splitTextToSize(l.toUpperCase(),LW-6),M+(isAlert?4:3),y+5);
-    if(badge){
-      const ok=v==="Sì";
-      ok?doc.setFillColor(22,163,74):doc.setFillColor(220,38,38);
-      doc.roundedRect(M+LW+3,y+1.8,12,5.6,1.2,1.2,"F");
-      doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(7);
-      doc.text(ok?"SÌ":"NO",M+LW+9,y+5.6,{align:"center"});
-    } else {
-      doc.setFont("helvetica","normal"); doc.setFontSize(8.4);
-      if(!filled) doc.setTextColor(165); else if(isAlert) doc.setTextColor(120,25,25); else doc.setTextColor(35);
-      doc.text(lines,M+LW+3,y+5);
-    }
-    y+=h;
-  }
-
-  sect("Anagrafica");
-  row("Committente / Resp. lavori",D.committente);
-  row("Indirizzo cantiere",D.indirizzo);
-  row("Direzione Lavori",D.dl);
-  row("Coord. sicurezza C.S.P.-C.S.E.",D.cse);
-  row("Professionisti intervenuti",D.professionisti);
-  row("Orario sopralluogo",D.ora+" — "+D.oraFine+"  ("+D.data+")");
-  y+=4;
-
-  sect("Erano presenti");
-  D.imprese.forEach(r=> row(r.n, r.t+"   ·   N° addetti: "+r.a));
-  y+=4;
-
-  sect("Rilievi");
-  row("Lavorazioni in corso",D.lavorazioni);
-  row("Documentazione in cantiere",D.doc,true);
-  row("Organizzazione cantiere",D.org,true);
-  row("Modalità operative e DPI",D.dpi,true);
-  row("Segnalazioni / azioni correttive",D.segnalazioni);
-  row("Sospensione lavori (art. 92 c.1 f)",D.sospensione,false,true);
-  row("Ripresa lavori sospesi (art. 92 c.1 f)",D.ripresa,false,true);
-  row("Note, varie ed eventuali",D.note);
-  row("Foto effettuate",D.foto,true);
-  y+=6;
-
-  if(y+60>PH-18){doc.addPage();y=M;}
-  sect("Firme per ricevuta comunicazione");
-  const c1=58,c2=60;
-  doc.setFillColor(247,248,249); doc.rect(M,y,W,6,"F"); doc.setDrawColor(215); doc.rect(M,y,W,6);
-  doc.line(M+c1,y,M+c1,y+6); doc.line(M+c1+c2,y,M+c1+c2,y+6);
-  doc.setFont("helvetica","bold"); doc.setFontSize(7); doc.setTextColor(85);
-  doc.text("NOME",M+3,y+4); doc.text("RUOLO / IMPRESA",M+c1+3,y+4); doc.text("FIRMA",M+c1+c2+3,y+4);
-  y+=6;
-  D.firmatari.forEach((f,i)=>{
-    const h=15;
-    if(y+h>PH-18){doc.addPage();y=M;}
-    doc.setDrawColor(215); doc.rect(M,y,W,h);
-    doc.line(M+c1,y,M+c1,y+h); doc.line(M+c1+c2,y,M+c1+c2,y+h);
-    doc.setFont("helvetica","bold"); doc.setFontSize(8.2); doc.setTextColor(25);
-    doc.text(doc.splitTextToSize(f.n,c1-6),M+3,y+8.5);
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.4); doc.setTextColor(80);
-    doc.text(doc.splitTextToSize(f.r,c2-6),M+c1+3,y+7);
-    fakeSig(doc,M+c1+c2+5,y+2,i+1);
-    y+=h;
-  });
-  y+=6;
-  if(y+10>PH-18){doc.addPage();y=M;}
-  doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(90);
-  doc.text("Il sopralluogo si è concluso il "+D.dataFine+" alle ore "+D.oraFine+".",M,y);
-
-  photoPages(doc); footer(doc); return doc;
-}
-
-
 function photoPages(doc){
   if(!D.photos || !D.photos.length) return;
   doc.addPage();
@@ -1240,14 +1156,11 @@ function photoPages(doc){
   });
 }
 
-const builders={A:styleA,B:styleB,C:styleC};
-
-
-async function deliver(k){
+async function deliver(){
   buildData();
-  const doc = builders[k]();
+  const doc = styleB();
   const blob = doc.output("blob");
-  const filename = `verbale-${(D.numero||"senza-numero").replace(/[^\w-]+/g,"_")}-stile${k}.pdf`;
+  const filename = `verbale-${(D.numero||"senza-numero").replace(/[^\w-]+/g,"_")}.pdf`;
   const dl = window.claude ? await window.claude.use("downloads") : null;
   if(dl){ try{ await dl.save({filename, data: blob}); return {saved:true, blob, filename}; }catch(e){} }
   return {saved:false, blob, filename};
@@ -1258,78 +1171,60 @@ function generatePDF(){
   rememberAnagrafica();
   app.innerHTML = `
     <div class="card">
-      <div class="final-icon">✅</div>
-      <div class="final-title">Verbale compilato</div>
-      <div class="final-sub">Scegli il formato del PDF. Puoi scaricarli tutti e tre e confrontarli.</div>
-      <div id="styleBox"></div>
-      <button class="btn btn-ghost" style="margin-top:14px;width:100%;" id="restartBtn">Nuovo verbale</button>
+      <div class="final-icon">${ICON_CHECK}</div>
+      <div class="final-title">Verbale completato</div>
+      <div class="final-sub">Il documento è pronto. Puoi scaricarlo o inviarlo direttamente via email.</div>
+      <div id="pdfPreview" style="margin-bottom:14px;"></div>
+      <div class="nav-row">
+        <button class="btn btn-ghost" style="flex:1;" id="previewBtn">Anteprima</button>
+        <button class="btn btn-primary" style="flex:1;" id="downloadBtn">Scarica PDF</button>
+      </div>
+      <button class="btn btn-ghost btn-icon" style="width:100%;margin-top:10px;" id="emailBtn">${ICON_MAIL}<span>Invia / allega a email</span></button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:10px;" id="restartBtn">Nuovo verbale</button>
     </div>`;
 
-  const opts = [
-    {k:"A", t:"A · Modulo Ufficiale", d:"Replica del modulo cartaceo: tutto in riquadri, caselle barrate, tabelle chiuse."},
-    {k:"B", t:"B · Report Professionale", d:"Intestazione bianca con logo, sezioni titolate, badge Sì/No, blocchi rossi per sospensione."},
-    {k:"C", t:"C · Compatto Tabellare", d:"Griglia densa etichetta/valore, righe rosse per sospensione. Meno pagine."}
-  ];
-  const box = document.getElementById("styleBox");
-  box.innerHTML = opts.map(o=>`
-    <div class="signer-card" style="margin-bottom:12px;">
-      <div style="font-weight:700;font-size:15px;margin-bottom:2px;">${o.t}</div>
-      <div style="font-size:12.5px;color:var(--muted);line-height:1.45;margin-bottom:10px;">${o.d}</div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-ghost" style="flex:1;padding:11px 0;font-size:14px;" data-prev="${o.k}">Anteprima</button>
-        <button class="btn btn-primary" style="flex:1;padding:11px 0;font-size:14px;" data-dl="${o.k}">Scarica</button>
-      </div>
-      <button class="btn btn-ghost" style="width:100%;margin-top:8px;padding:11px 0;font-size:14px;" data-email="${o.k}">✉️ Invia / allega a email</button>
-      <div id="pv_${o.k}" style="margin-top:10px;"></div>
-    </div>
-  `).join("");
-
-  box.querySelectorAll("[data-dl]").forEach(b=>{
-    b.addEventListener("click", async ()=>{
-      b.textContent = "…";
-      const res = await deliver(b.dataset.dl);
-      if(!res.saved){
-        const a=document.createElement("a");
-        a.href=URL.createObjectURL(res.blob); a.download=res.filename; a.click();
-      }
-      b.textContent = "Scarica";
-    });
-  });
-  box.querySelectorAll("[data-email]").forEach(b=>{
-    b.addEventListener("click", async ()=>{
-      const k = b.dataset.email;
-      b.textContent = "…";
-      buildData();
-      const doc = builders[k]();
-      const blob = doc.output("blob");
-      const filename = `verbale-${(D.numero||"senza-numero").replace(/[^\w-]+/g,"_")}-stile${k}.pdf`;
-      const file = new File([blob], filename, {type:"application/pdf"});
-      let shared = false;
-      if(navigator.canShare && navigator.canShare({files:[file]})){
-        try{
-          await navigator.share({files:[file], title:"Verbale di Cantiere", text:"Verbale di cantiere — "+(D.indirizzo||"")});
-          shared = true;
-        }catch(e){ /* utente ha annullato */ shared = true; }
-      }
-      if(!shared){
-        const a=document.createElement("a");
-        a.href=URL.createObjectURL(blob); a.download=filename; a.click();
-        alert("L'invio diretto non è supportato su questo browser. Il PDF è stato scaricato: allegalo manualmente alla tua email.");
-      }
-      b.textContent = "✉️ Invia / allega a email";
-    });
+  document.getElementById("downloadBtn").addEventListener("click", async ()=>{
+    const btn = document.getElementById("downloadBtn");
+    btn.textContent = "Preparazione...";
+    const res = await deliver();
+    if(!res.saved){
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(res.blob); a.download=res.filename; a.click();
+    }
+    btn.textContent = "Scarica PDF";
   });
 
-  box.querySelectorAll("[data-prev]").forEach(b=>{
-    b.addEventListener("click", ()=>{
-      const k=b.dataset.prev;
-      buildData();
-      const blob = builders[k]().output("blob");
-      const url = URL.createObjectURL(blob);
-      const pv = document.getElementById("pv_"+k);
-      pv.innerHTML = `<embed src="${url}#toolbar=0&navpanes=0&view=FitH" type="application/pdf" style="width:100%;height:380px;border:1px solid var(--border);border-radius:10px;background:#fff;display:block;">
-        <div class="hint">Se l'anteprima non si vede sul telefono, usa "Scarica".</div>`;
-    });
+  document.getElementById("previewBtn").addEventListener("click", ()=>{
+    buildData();
+    const blob = styleB().output("blob");
+    const url = URL.createObjectURL(blob);
+    const pv = document.getElementById("pdfPreview");
+    pv.innerHTML = `<embed src="${url}#toolbar=0&navpanes=0&view=FitH" type="application/pdf" style="width:100%;height:420px;border:1px solid var(--border);border-radius:10px;background:#fff;display:block;">
+      <p class="hint">Se l'anteprima non si vede sul telefono, usa "Scarica PDF".</p>`;
+  });
+
+  document.getElementById("emailBtn").addEventListener("click", async ()=>{
+    const btn = document.getElementById("emailBtn");
+    const label = btn.querySelector("span");
+    label.textContent = "Preparazione...";
+    buildData();
+    const doc = styleB();
+    const blob = doc.output("blob");
+    const filename = `verbale-${(D.numero||"senza-numero").replace(/[^\w-]+/g,"_")}.pdf`;
+    const file = new File([blob], filename, {type:"application/pdf"});
+    let shared = false;
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({files:[file], title:"Verbale di Cantiere", text:"Verbale di cantiere — "+(D.indirizzo||"")});
+        shared = true;
+      }catch(e){ shared = true; }
+    }
+    if(!shared){
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(blob); a.download=filename; a.click();
+      alert("L'invio diretto non è supportato su questo browser. Il PDF è stato scaricato: allegalo manualmente alla tua email.");
+    }
+    label.textContent = "Invia / allega a email";
   });
 
   document.getElementById("restartBtn").addEventListener("click", ()=>{
