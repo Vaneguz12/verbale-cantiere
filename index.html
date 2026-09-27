@@ -603,7 +603,7 @@ function onNext(s){
 let sheetAnagrafica = { clienti: [], imprese: [], direttori: [], coordinatori: [], professionisti: [] }; // dal CSV, se configurato
 
 function localAnagrafica(){
-  const def = {clienti:[], imprese:[], direttori:[], coordinatori:[]};
+  const def = {clienti:[], imprese:[], direttori:[], coordinatori:[], professionisti:[]};
   try{ return Object.assign(def, JSON.parse(localStorage.getItem("verbaleAnagrafica")||"{}")); }
   catch(e){ return def; }
 }
@@ -651,7 +651,8 @@ function bumpContatore(){
 // da chiamare quando il verbale viene completato: ricorda cliente, imprese, direttore e coordinatore
 function rememberAnagrafica(){
   const a = localAnagrafica();
-  let clienteNuovo = false, impreseNuove = [], direttoreNuovo = false, coordinatoreNuovo = false;
+  if(!a.professionisti) a.professionisti = [];
+  let clienteNuovo = false, impreseNuove = [], direttoreNuovo = false, coordinatoreNuovo = false, professionistiNuovi = [];
 
   if(answers.committente){
     const key = answers.committente.toLowerCase();
@@ -689,6 +690,16 @@ function rememberAnagrafica(){
     a.coordinatori = rememberName(a.coordinatori, answers.coordinatoreSicurezza);
   }
 
+  // professionisti aggiunti col selettore titolo+nome: si salva la stringa già completa
+  // (es. "Geom. Federico Rossi"), senza bisogno di nessuna colonna "ruolo".
+  professionistiList.forEach(p=>{
+    const combinato = p.titolo ? `${p.titolo} ${p.nome}` : p.nome;
+    const key = combinato.toLowerCase();
+    const giaNoto = a.professionisti.some(n=>n.toLowerCase()===key);
+    if(!giaNoto) professionistiNuovi.push(combinato);
+    a.professionisti = rememberName(a.professionisti, combinato);
+  });
+
   saveLocalAnagrafica(a);
   bumpContatore();
 
@@ -699,6 +710,7 @@ function rememberAnagrafica(){
   impreseNuove.forEach(r=> pushToSheet("impresa", {impresa:r.impresa, titolare:r.titolare}));
   if(direttoreNuovo) pushToSheet("direttore", {direttore: answers.direzioneLavori});
   if(coordinatoreNuovo) pushToSheet("coordinatore", {coordinatore: answers.coordinatoreSicurezza});
+  professionistiNuovi.forEach(nome=> pushToSheet("professionista", {professionista: nome}));
 }
 
 async function pushToSheet(type, data){
