@@ -228,6 +228,7 @@ const answers = {};
 const imprese = []; // {nome, titolare, addetti}
 const photos = [];
 const signers = []; // {id, nombre, rol, firma}
+const professionistiList = []; // {titolo, nome}
 let sigId = 0;
 const drawState = {}; // canvasEl-keyed drawing state
 
@@ -292,8 +293,8 @@ function render(){
       }
       if(f.titoloPicker){
         return `<label class="field-label">${f.label}</label>
-          <textarea id="gf_${f.id}" placeholder="Es. Geom. Federico Rossi, Arch. Marco Bianchi" rows="2">${val}</textarea>
-          <button type="button" class="add-row-btn" id="addProfBtn" style="margin-bottom:14px;">+ Aggiungi professionista</button>`;
+          <div id="profList" style="margin-bottom:10px;"></div>
+          <button type="button" class="add-row-btn" id="addProfBtn">+ Aggiungi professionista</button>`;
       }
       return `<label class="field-label">${f.label}</label><input type="text" id="gf_${f.id}" value="${val}">`;
     }).join("");
@@ -302,9 +303,9 @@ function render(){
       <div class="choice-opt ${answers[s.id]===o?'sel':''}" data-v="${o}"><div class="dot"></div><div>${o}</div></div>
     `).join("");
     if(s.allowOther){
-      const isOther = answers[s.id] && !s.options.includes(answers[s.id]);
+      const isOther = answers[s.id+"_altro"] || (answers[s.id] && !s.options.includes(answers[s.id]));
       inner += `<div class="choice-opt ${isOther?'sel':''}" data-v="__other__"><div class="dot"></div><div>Altro</div></div>`;
-      inner += `<input type="text" id="otherField" placeholder="Specifica..." style="display:${isOther?'block':'none'}" value="${isOther?answers[s.id]:''}">`;
+      inner += `<input type="text" id="otherField" placeholder="Specifica..." style="display:${isOther?'block':'none'}" value="${isOther?(answers[s.id]||''):''}">`;
     }
   } else if(s.type==="yesno"){
     const v = answers[s.id];
@@ -371,10 +372,12 @@ function wireStep(s){
       el.addEventListener("click", ()=>{
         const v = el.dataset.v;
         if(v==="__other__"){
+          answers[s.id+"_altro"] = true;
           answers[s.id] = "";
           render();
           setTimeout(()=>document.getElementById("otherField")?.focus(), 50);
         } else {
+          answers[s.id+"_altro"] = false;
           answers[s.id] = v; render();
         }
       });
@@ -496,6 +499,7 @@ function wireStep(s){
     s.fields.filter(f=>f.titoloPicker).forEach(f=>{
       const btn = document.getElementById("addProfBtn");
       if(!btn) return;
+      renderProfList(f.id);
       btn.addEventListener("click", ()=> openTitoloPicker(f.id));
     });
   }
@@ -575,7 +579,10 @@ function onNext(s){
     answers.indirizzo = combinaIndirizzo();
   }
   if(s.type==="group"){
-    s.fields.forEach(f=>{ answers[f.id] = document.getElementById("gf_"+f.id).value.trim(); });
+    s.fields.forEach(f=>{
+      if(f.titoloPicker) return; // già sincronizzato quando si aggiunge/rimuove un professionista
+      answers[f.id] = document.getElementById("gf_"+f.id).value.trim();
+    });
   }
   if(s.type==="signers"){
     signers.forEach(sg=>{
@@ -843,12 +850,7 @@ function parseIndirizzo(str){
 const TITOLI_PROFESSIONALI = [
   {abbr:"Geom.", nome:"Geometra"},
   {abbr:"Arch.", nome:"Architetto"},
-  {abbr:"Ing.", nome:"Ingegnere"},
-  {abbr:"P.I.", nome:"Perito Industriale"},
-  {abbr:"Geol.", nome:"Geologo"},
-  {abbr:"Per. Agr.", nome:"Perito Agrario"},
-  {abbr:"Dott.", nome:"Dottore"},
-  {abbr:"Rag.", nome:"Ragioniere"}
+  {abbr:"Ing.", nome:"Ingegnere"}
 ];
 
 function openTitoloPicker(fieldId){
@@ -895,12 +897,36 @@ function openTitoloPicker(fieldId){
     const titolo = altroVal || titoloScelto;
     const nome = document.getElementById("profNome").value.trim();
     if(!nome){ document.getElementById("profNome").focus(); return; }
-    const combinato = titolo ? `${titolo} ${nome}` : nome;
-    const field = document.getElementById("gf_"+fieldId);
-    const cur = field.value.trim();
-    field.value = cur ? cur + ", " + combinato : combinato;
-    answers[fieldId] = field.value;
+    professionistiList.push({titolo, nome});
+    syncProfessionisti(fieldId);
+    renderProfList(fieldId);
     wrap.remove();
+  });
+}
+
+function syncProfessionisti(fieldId){
+  answers[fieldId] = professionistiList.map(p=> p.titolo ? `${p.titolo} ${p.nome}` : p.nome).join(", ");
+}
+
+function renderProfList(fieldId){
+  const box = document.getElementById("profList");
+  if(!box) return;
+  if(!professionistiList.length){
+    box.innerHTML = `<p class="hint" style="margin:0 0 4px;">Nessun professionista aggiunto.</p>`;
+    return;
+  }
+  box.innerHTML = professionistiList.map((p,i)=>`
+    <div class="table-row" style="padding:10px 12px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+      <span style="font-weight:600;">${p.titolo ? p.titolo+" " : ""}${p.nome}</span>
+      <button type="button" class="rm" style="position:static;" data-i="${i}">✕</button>
+    </div>
+  `).join("");
+  box.querySelectorAll(".rm").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      professionistiList.splice(+b.dataset.i, 1);
+      syncProfessionisti(fieldId);
+      renderProfList(fieldId);
+    });
   });
 }
 
@@ -1704,7 +1730,7 @@ function generatePDF(){
 
   document.getElementById("restartBtn").addEventListener("click", ()=>{
     current=0; for(const k in answers) delete answers[k];
-    imprese.length=0; photos.length=0; signers.length=0;
+    imprese.length=0; photos.length=0; signers.length=0; professionistiList.length=0;
     render();
   });
 }
