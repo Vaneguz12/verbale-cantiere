@@ -110,6 +110,7 @@
   .signer-card .rm{position:absolute; top:10px; right:10px; background:none; border:none; color:var(--muted); font-size:15px; cursor:pointer;}
   .quick-add-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
   .quick-add{padding:8px 12px; border-radius:99px; border:1.5px solid var(--border); background:var(--bg); font-size:13px; font-weight:600; cursor:pointer; color:var(--text);}
+  .quick-add.sel{background:var(--text); color:var(--card); border-color:var(--text);}
 </style>
 </head>
 <body>
@@ -185,7 +186,7 @@ const steps = [
   {type:"group", id:"redattore", label:"Chi redige", question:"Chi effettua il sopralluogo", fields:[
     {id:"direzioneLavori", label:"Direzione Lavori", type:"text", suggest:"direttori", def: ()=> (allDirettori()[0]||"")},
     {id:"coordinatoreSicurezza", label:"Coordinatore della Sicurezza C.S.P.-C.S.E.", type:"text", suggest:"coordinatori", def: ()=> (allCoordinatori()[0]||"")},
-    {id:"professionisti", label:"Altri professionisti intervenuti nel verbale", type:"text", suggest:"professionisti"}
+    {id:"professionisti", label:"Altri professionisti intervenuti nel verbale", type:"text", titoloPicker:true}
   ]},
 
   {type:"dyntable", id:"imprese", label:"Presenti", question:"Erano presenti (imprese e persone)", columns:[
@@ -288,6 +289,11 @@ function render(){
       }
       if(f.suggest){
         return `<label class="field-label">${f.label}</label><div class="sugg-wrap"><input type="text" autocomplete="off" id="gf_${f.id}" value="${val}"><div class="sugg-box" id="sugg_${f.id}"></div></div>`;
+      }
+      if(f.titoloPicker){
+        return `<label class="field-label">${f.label}</label>
+          <textarea id="gf_${f.id}" placeholder="Es. Geom. Federico Rossi, Arch. Marco Bianchi" rows="2">${val}</textarea>
+          <button type="button" class="add-row-btn" id="addProfBtn" style="margin-bottom:14px;">+ Aggiungi professionista</button>`;
       }
       return `<label class="field-label">${f.label}</label><input type="text" id="gf_${f.id}" value="${val}">`;
     }).join("");
@@ -484,17 +490,13 @@ function wireStep(s){
       const input = document.getElementById("gf_"+f.id);
       const box = document.getElementById("sugg_"+f.id);
       if(!input || !box) return;
-      if(f.suggest==="professionisti"){
-        wireSuggest(input, box, allProfessionisti, p=>`${p.nome} — ${p.ruolo}`, (picked)=>{
-          const parts = input.value.split(",").map(s=>s.trim()).filter(Boolean);
-          parts.pop(); // rimuove il testo parziale che si stava digitando (es. "geo")
-          parts.push(`${picked.nome} (${picked.ruolo})`);
-          input.value = parts.join(", ") + ", ";
-        }, true);
-      } else {
-        const listFn = f.suggest==="direttori" ? allDirettori : allCoordinatori;
-        wireSuggest(input, box, listFn, name=>name, (picked)=>{ input.value = picked; });
-      }
+      const listFn = f.suggest==="direttori" ? allDirettori : allCoordinatori;
+      wireSuggest(input, box, listFn, name=>name, (picked)=>{ input.value = picked; });
+    });
+    s.fields.filter(f=>f.titoloPicker).forEach(f=>{
+      const btn = document.getElementById("addProfBtn");
+      if(!btn) return;
+      btn.addEventListener("click", ()=> openTitoloPicker(f.id));
     });
   }
 
@@ -642,7 +644,7 @@ function bumpContatore(){
 // da chiamare quando il verbale viene completato: ricorda cliente, imprese, direttore e coordinatore
 function rememberAnagrafica(){
   const a = localAnagrafica();
-  let clienteNuovo = false, impreseNuove = [], direttoreNuovo = false, coordinatoreNuovo = false, professionistiNuovi = [];
+  let clienteNuovo = false, impreseNuove = [], direttoreNuovo = false, coordinatoreNuovo = false;
 
   if(answers.committente){
     const key = answers.committente.toLowerCase();
@@ -680,12 +682,6 @@ function rememberAnagrafica(){
     a.coordinatori = rememberName(a.coordinatori, answers.coordinatoreSicurezza);
   }
 
-  parseProfessionisti(answers.professionisti).forEach(p=>{
-    const key = p.nome.toLowerCase()+"|"+p.ruolo.toLowerCase();
-    const giaNoto = sheetAnagrafica.professionisti.some(x=>(x.nome.toLowerCase()+"|"+x.ruolo.toLowerCase())===key);
-    if(!giaNoto) professionistiNuovi.push(p);
-  });
-
   saveLocalAnagrafica(a);
   bumpContatore();
 
@@ -696,7 +692,6 @@ function rememberAnagrafica(){
   impreseNuove.forEach(r=> pushToSheet("impresa", {impresa:r.impresa, titolare:r.titolare}));
   if(direttoreNuovo) pushToSheet("direttore", {direttore: answers.direzioneLavori});
   if(coordinatoreNuovo) pushToSheet("coordinatore", {coordinatore: answers.coordinatoreSicurezza});
-  professionistiNuovi.forEach(p=> pushToSheet("professionista", {ruolo:p.ruolo, professionista:p.nome}));
 }
 
 async function pushToSheet(type, data){
@@ -759,7 +754,7 @@ async function loadAnagraficaSheet(){
     sheetAnagrafica.imprese = rows.filter(r=>r.impresa).map(r=>({impresa:r.impresa, titolare:r.titolare||""}));
     sheetAnagrafica.direttori = [...new Set(rows.map(r=>pickCol(r,ALIASES.direttore)).filter(Boolean))];
     sheetAnagrafica.coordinatori = [...new Set(rows.map(r=>pickCol(r,ALIASES.coordinatore)).filter(Boolean))];
-    sheetAnagrafica.professionisti = rows.filter(r=>r.ruolo && r.professionista).map(r=>({ruolo:r.ruolo, nome:r.professionista}));
+    // (colonna "ruolo" non più necessaria: i professionisti si aggiungono col selettore titolo+nome)
   }catch(e){
     console.warn("Anagrafica: non sono riuscito a leggere il Google Sheet.", e);
   }
@@ -788,10 +783,6 @@ function allCoordinatori(){
   const local = localAnagrafica().coordinatori || [];
   const merged = [...local, ...(sheetAnagrafica.coordinatori||[])];
   return [...new Set(merged)];
-}
-function allProfessionisti(){
-  // rubrica ruolo -> nome (es. Geometra, Architetto...), solo dal Google Sheet
-  return sheetAnagrafica.professionisti || [];
 }
 
 // dropdown generico riusabile per suggerimenti anagrafica
@@ -848,11 +839,83 @@ function parseIndirizzo(str){
   return out;
 }
 
+// Titoli professionali comuni, usati dal selettore "+ Aggiungi professionista"
+const TITOLI_PROFESSIONALI = [
+  {abbr:"Geom.", nome:"Geometra"},
+  {abbr:"Arch.", nome:"Architetto"},
+  {abbr:"Ing.", nome:"Ingegnere"},
+  {abbr:"P.I.", nome:"Perito Industriale"},
+  {abbr:"Geol.", nome:"Geologo"},
+  {abbr:"Per. Agr.", nome:"Perito Agrario"},
+  {abbr:"Dott.", nome:"Dottore"},
+  {abbr:"Rag.", nome:"Ragioniere"}
+];
+
+function openTitoloPicker(fieldId){
+  const wrap = document.createElement("div");
+  wrap.className = "settings-overlay";
+  wrap.innerHTML = `
+    <div class="settings-sheet">
+      <h3>Aggiungi professionista</h3>
+      <p class="hint">Scegli il titolo e scrivi il nome — verranno uniti automaticamente (es. "Geom. Federico Rossi").</p>
+      <label class="field-label">Titolo</label>
+      <div class="quick-add-row" id="titoloChips">
+        ${TITOLI_PROFESSIONALI.map((t,i)=>`<button type="button" class="quick-add" data-i="${i}">${t.abbr}</button>`).join("")}
+        <button type="button" class="quick-add" data-i="altro">Altro...</button>
+      </div>
+      <input type="text" id="titoloAltro" placeholder="Scrivi il titolo (es. P.E.)" style="display:none;">
+      <label class="field-label" style="margin-top:10px;">Nome e cognome</label>
+      <input type="text" id="profNome" placeholder="Es. Federico Rossi">
+      <div class="nav-row" style="margin-top:16px;">
+        <button class="btn btn-ghost" id="profClose">Annulla</button>
+        <button class="btn btn-primary" id="profAdd">Aggiungi</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  let titoloScelto = "";
+  wrap.querySelectorAll("#titoloChips .quick-add").forEach(chip=>{
+    chip.addEventListener("click", ()=>{
+      wrap.querySelectorAll("#titoloChips .quick-add").forEach(c=>c.classList.remove("sel"));
+      chip.classList.add("sel");
+      const altroInput = document.getElementById("titoloAltro");
+      if(chip.dataset.i === "altro"){
+        titoloScelto = "";
+        altroInput.style.display = "block";
+        altroInput.focus();
+      } else {
+        titoloScelto = TITOLI_PROFESSIONALI[+chip.dataset.i].abbr;
+        altroInput.style.display = "none";
+      }
+    });
+  });
+  wrap.addEventListener("click", e=>{ if(e.target===wrap) wrap.remove(); });
+  document.getElementById("profClose").addEventListener("click", ()=> wrap.remove());
+  document.getElementById("profAdd").addEventListener("click", ()=>{
+    const altroVal = document.getElementById("titoloAltro").value.trim();
+    const titolo = altroVal || titoloScelto;
+    const nome = document.getElementById("profNome").value.trim();
+    if(!nome){ document.getElementById("profNome").focus(); return; }
+    const combinato = titolo ? `${titolo} ${nome}` : nome;
+    const field = document.getElementById("gf_"+fieldId);
+    const cur = field.value.trim();
+    field.value = cur ? cur + ", " + combinato : combinato;
+    answers[fieldId] = field.value;
+    wrap.remove();
+  });
+}
+
+// Divide il testo "Geom. Federico Rossi, Arch. Marco Bianchi" nei singoli professionisti,
+// riconoscendo il titolo iniziale se presente (altrimenti resta solo il nome).
 function parseProfessionisti(text){
   if(!text) return [];
+  const titoliOrdinati = [...TITOLI_PROFESSIONALI].sort((a,b)=> b.abbr.length - a.abbr.length);
   return text.split(",").map(s=>s.trim()).filter(Boolean).map(seg=>{
-    const m = seg.match(/^(.*)\(([^()]+)\)$/);
-    return m ? {nome: m[1].trim(), ruolo: m[2].trim()} : {nome: seg, ruolo: "Professionista"};
+    for(const t of titoliOrdinati){
+      if(seg.toLowerCase().startsWith(t.abbr.toLowerCase()+" ")){
+        return {nome: seg, ruolo: t.nome};
+      }
+    }
+    return {nome: seg, ruolo: "Professionista"};
   });
 }
 
