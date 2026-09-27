@@ -140,12 +140,41 @@ const ICON_GEAR = `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" s
 const ICON_MAIL = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/></svg>`;
 const ICON_CHECK = `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M8 12.3l2.6 2.6 5.4-5.6"/></svg>`;
 
+// Comuni e CAP della provincia di Alessandria (uso locale, nessuna chiamata esterna)
+// Comuni e CAP: elenco integrato offline (provincia di Alessandria), sostituibile da un Google Sheet
+const CAP_AL_DEFAULT = [["Acqui Terme", "15011"], ["Albera Ligure", "15060"], ["Alessandria", "15121"], ["Alessandria", "15122"], ["Alfiano Natta", "15021"], ["Alice Bel Colle", "15010"], ["Alluvioni Piovera", "15040"], ["Altavilla Monferrato", "15041"], ["Alzano Scrivia", "15050"], ["Arquata Scrivia", "15061"], ["Avolasca", "15050"], ["Balzola", "15031"], ["Basaluzzo", "15060"], ["Bassignana", "15042"], ["Belforte Monferrato", "15070"], ["Bergamasco", "15022"], ["Berzano di Tortona", "15050"], ["Bistagno", "15012"], ["Borghetto di Borbera", "15060"], ["Borgoratto Alessandrino", "15013"], ["Borgo San Martino", "15032"], ["Bosco Marengo", "15062"], ["Bosio", "15060"], ["Bozzole", "15040"], ["Brignano-Frascata", "15050"], ["Cabella Ligure", "15060"], ["Camagna Monferrato", "15030"], ["Camino", "15020"], ["Cantalupo Ligure", "15060"], ["Capriata d'Orba", "15060"], ["Carbonara Scrivia", "15050"], ["Carentino", "15026"], ["Carezzano", "15051"], ["Carpeneto", "15071"], ["Carrega Ligure", "15060"], ["Carrosio", "15060"], ["Cartosio", "15015"], ["Casal Cermelli", "15072"], ["Casaleggio Boiro", "15070"], ["Casale Monferrato", "15033"], ["Casalnoceto", "15052"], ["Casasco", "15050"], ["Cassano Spinola", "15063"], ["Cassine", "15016"], ["Cassinelle", "15070"], ["Castellania Coppi", "15051"], ["Castellar Guidobono", "15050"], ["Castellazzo Bormida", "15073"], ["Castelletto d'Erro", "15010"], ["Castelletto d'Orba", "15060"], ["Castelletto Merli", "15020"], ["Castelletto Monferrato", "15040"], ["Castelnuovo Bormida", "15017"], ["Castelnuovo Scrivia", "15053"], ["Castelspina", "15070"], ["Cavatore", "15010"], ["Cella Monte", "15034"], ["Cereseto", "15020"], ["Cerreto Grue", "15050"], ["Cerrina Monferrato", "15020"], ["Coniolo", "15030"], ["Conzano", "15030"], ["Costa Vescovato", "15050"], ["Cremolino", "15010"], ["Denice", "15010"], ["Dernice", "15056"], ["Fabbrica Curone", "15054"], ["Felizzano", "15023"], ["Fraconalto", "15060"], ["Francavilla Bisio", "15060"], ["Frascaro", "15010"], ["Frassinello Monferrato", "15035"], ["Frassineto Po", "15040"], ["Fresonara", "15064"], ["Frugarolo", "15065"], ["Fubine Monferrato", "15043"], ["Gabiano", "15020"], ["Gamalero", "15010"], ["Garbagna", "15050"], ["Gavi", "15066"], ["Giarole", "15036"], ["Gremiasco", "15056"], ["Grognardo", "15010"], ["Grondona", "15060"], ["Guazzora", "15050"], ["Isola Sant'Antonio", "15050"], ["Lerma", "15070"], ["Lu e Cuccaro Monferrato", "15040"], ["Malvicino", "15015"], ["Masio", "15024"], ["Melazzo", "15010"], ["Merana", "15010"], ["Mirabello Monferrato", "15040"], ["Molare", "15074"], ["Molino dei Torti", "15050"], ["Mombello Monferrato", "15020"], ["Momperone", "15050"], ["Moncestino", "15020"], ["Mongiardino Ligure", "15060"], ["Monleale", "15059"], ["Montacuto", "15050"], ["Montaldeo", "15060"], ["Montaldo Bormida", "15010"], ["Montecastello", "15040"], ["Montechiaro d'Acqui", "15010"], ["Montegioco", "15050"], ["Montemarzino", "15050"], ["Morano sul Po", "15025"], ["Morbello", "15010"], ["Mornese", "15075"], ["Morsasco", "15010"], ["Murisengo", "15020"], ["Novi Ligure", "15067"], ["Occimiano", "15040"], ["Odalengo Grande", "15020"], ["Odalengo Piccolo", "15020"], ["Olivola", "15030"], ["Orsara Bormida", "15010"], ["Ottiglio", "15038"], ["Ovada", "15076"], ["Oviglio", "15026"], ["Ozzano Monferrato", "15039"], ["Paderna", "15050"], ["Pareto", "15010"], ["Parodi Ligure", "15060"], ["Pasturana", "15060"], ["Pecetto di Valenza", "15040"], ["Pietra Marazzi", "15040"], ["Pomaro Monferrato", "15040"], ["Pontecurone", "15055"], ["Pontestura", "15027"], ["Ponti", "15010"], ["Ponzano Monferrato", "15020"], ["Ponzone", "15010"], ["Pozzol Groppo", "15050"], ["Pozzolo Formigaro", "15068"], ["Prasco", "15010"], ["Predosa", "15077"], ["Quargnento", "15044"], ["Quattordio", "15028"], ["Ricaldone", "15010"], ["Rivalta Bormida", "15010"], ["Rivarone", "15040"], ["Roccaforte Ligure", "15060"], ["Rocca Grimalda", "15078"], ["Rocchetta Ligure", "15060"], ["Rosignano Monferrato", "15030"], ["Sala Monferrato", "15030"], ["Sale", "15045"], ["San Cristoforo", "15060"], ["San Giorgio Monferrato", "15020"], ["San Salvatore Monferrato", "15046"], ["San Sebastiano Curone", "15056"], ["Sant'Agata Fossili", "15050"], ["Sardigliano", "15060"], ["Sarezzano", "15050"], ["Serralunga di Crea", "15020"], ["Serravalle Scrivia", "15069"], ["Sezzadio", "15079"], ["Silvano d'Orba", "15060"], ["Solero", "15029"], ["Solonghello", "15020"], ["Spigno Monferrato", "15018"], ["Spineto Scrivia", "15050"], ["Stazzano", "15060"], ["Strevi", "15019"], ["Tagliolo Monferrato", "15070"], ["Tassarolo", "15060"], ["Terruggia", "15030"], ["Terzo", "15010"], ["Ticineto", "15040"], ["Tortona", "15057"], ["Treville", "15030"], ["Trisobbio", "15070"], ["Valenza", "15048"], ["Valmacca", "15040"], ["Vignale Monferrato", "15049"], ["Vignole Borbera", "15060"], ["Viguzzolo", "15058"], ["Villadeati", "15020"], ["Villalvernia", "15050"], ["Villamiroglio", "15020"], ["Villanova Monferrato", "15030"], ["Villaromagnano", "15050"], ["Visone", "15010"], ["Volpedo", "15059"], ["Volpeglino", "15050"], ["Voltaggio", "15060"]];
+let CAP_AL_ACTIVE = CAP_AL_DEFAULT;
+function comuniByCap(cap){
+  return CAP_AL_ACTIVE.filter(([,c])=>c===cap).map(([n])=>n);
+}
+function capByComune(nome){
+  const hit = CAP_AL_ACTIVE.find(([n])=>n.toLowerCase()===nome.trim().toLowerCase());
+  return hit ? hit[1] : "";
+}
+function capsByComune(nome){
+  return CAP_AL_ACTIVE.filter(([n])=>n.toLowerCase()===nome.trim().toLowerCase()).map(([,c])=>c);
+}
+async function loadCapSheet(){
+  const cfg = getSettings();
+  if(!cfg.capSheetUrl){ CAP_AL_ACTIVE = CAP_AL_DEFAULT; return; }
+  try{
+    const res = await fetch(cfg.capSheetUrl, {cache:"no-store"});
+    const text = await res.text();
+    const rows = parseCSV(text);
+    const custom = rows.filter(r=>r.comune && r.cap).map(r=>[r.comune.trim(), r.cap.trim()]);
+    CAP_AL_ACTIVE = custom.length ? custom : CAP_AL_DEFAULT;
+  }catch(e){
+    console.warn("Comuni/CAP: non sono riuscito a leggere il foglio personalizzato, uso l'elenco integrato.", e);
+    CAP_AL_ACTIVE = CAP_AL_DEFAULT;
+  }
+}
+
 const steps = [
   {type:"choice", id:"tipoVerbale", label:"Tipo di verbale", question:"Verbale di:",
     options:["Sopralluogo in cantiere (D.L.)","Sopralluogo in cantiere (C.S.P.-C.S.E.)","Riunione di coordinamento"], allowOther:true},
 
   {type:"text", id:"committente", label:"Committente", question:"Committente e responsabile dei lavori"},
-  {type:"address", id:"indirizzo", label:"Cantiere", question:"Indirizzo cantiere"},
+  {type:"indirizzoStruct", id:"indirizzo", label:"Cantiere", question:"Indirizzo cantiere"},
 
   {type:"group", id:"datiVerbale", label:"Dati verbale", question:"Dati del verbale", fields:[
     {id:"numero", label:"Verbale di sopralluogo N°", type:"text", def: ()=> suggestNumero(answers.committente)},
@@ -217,9 +246,39 @@ function render(){
     } else {
       inner += `<input type="text" id="field" value="${answers[s.id]||''}">`;
     }
-  } else if(s.type==="address"){
-    inner += `<input type="text" id="field" autocomplete="off" placeholder="Inizia a scrivere l'indirizzo..." value="${answers[s.id]||''}">
-    <p class="hint" id="addrHint">Ricerca automatica con Google Maps, se configurata in Impostazioni.</p>`;
+  } else if(s.type==="indirizzoStruct"){
+    const via = answers.indirizzoVia !== undefined ? answers.indirizzoVia : (answers[s.id]||"");
+    inner += `
+      <label class="field-label">Via / indirizzo</label>
+      <input type="text" id="ind_via" placeholder="Es. Via Dante Alighieri" value="${via}">
+      <div style="display:flex; gap:10px;">
+        <div style="flex:1;">
+          <label class="field-label">Civico</label>
+          <input type="text" id="ind_civico" placeholder="42" value="${answers.indirizzoCivico||''}">
+        </div>
+        <div style="flex:1;">
+          <label class="field-label">CAP</label>
+          <div class="sugg-wrap">
+            <input type="text" id="ind_cap" autocomplete="off" placeholder="15121" value="${answers.indirizzoCap||''}" maxlength="5">
+            <div class="sugg-box" id="capSuggest"></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <div style="flex:2;">
+          <label class="field-label">Città</label>
+          <div class="sugg-wrap">
+            <input type="text" id="ind_citta" autocomplete="off" placeholder="Alessandria" value="${answers.indirizzoCitta||''}">
+            <div class="sugg-box" id="cittaSuggest"></div>
+          </div>
+        </div>
+        <div style="flex:1;">
+          <label class="field-label">Prov.</label>
+          <input type="text" id="ind_prov" maxlength="2" placeholder="AL" value="${answers.indirizzoProvincia||''}" style="text-transform:uppercase;">
+        </div>
+      </div>
+      <p class="hint" id="indPreview"></p>
+      <p class="hint">Comuni della provincia di Alessandria: scrivi la città o il CAP e scegli dal suggerimento.</p>`;
   } else if(s.type==="group"){
     inner += s.fields.map(f=>{
       let val = answers[f.id];
@@ -271,11 +330,16 @@ function render(){
     const impreseQuick = imprese.filter(r=>r.nome||r.titolare).map((r,i)=>
       `<button class="quick-add" data-impresa-i="${i}">+ ${r.nome || r.titolare}</button>`
     ).join("");
+    const profList = parseProfessionisti(answers.professionisti);
+    const profQuick = profList.map((p,i)=>
+      `<button class="quick-add" data-prof-i="${i}">+ ${p.nome}</button>`
+    ).join("");
     inner += `<div class="quick-add-row">
       <button class="quick-add" data-role="Committente e Responsabile dei lavori">+ Committente</button>
       <button class="quick-add" data-role="Direzione Lavori">+ D.L.</button>
       <button class="quick-add" data-role="C.S.P.-C.S.E.">+ C.S.P.-C.S.E.</button>
       ${impreseQuick}
+      ${profQuick}
     </div>
     <div id="signersBox"></div>
     <button class="add-signer-btn" id="addSignerBtn">+ Aggiungi firmatario</button>`;
@@ -324,12 +388,94 @@ function wireStep(s){
     wireSuggest(input, box, allClienti, c=>c.cliente, (picked)=>{
       input.value = picked.cliente;
       answers.committente = picked.cliente;
-      if(picked.indirizzo) answers.indirizzo = picked.indirizzo;
+      if(picked.indirizzo){
+        answers.indirizzo = picked.indirizzo;
+        const parsed = parseIndirizzo(picked.indirizzo);
+        answers.indirizzoVia = parsed.via;
+        answers.indirizzoCivico = parsed.civico;
+        answers.indirizzoCap = parsed.cap;
+        answers.indirizzoCitta = parsed.citta;
+        answers.indirizzoProvincia = parsed.prov;
+      }
     });
   }
 
-  if(s.type==="address"){
-    setupAddressField();
+  if(s.type==="indirizzoStruct"){
+    const ids = ["ind_via","ind_civico","ind_cap","ind_citta","ind_prov"];
+    const preview = document.getElementById("indPreview");
+    function updatePreview(){
+      const via=document.getElementById("ind_via").value.trim();
+      const civico=document.getElementById("ind_civico").value.trim();
+      const cap=document.getElementById("ind_cap").value.trim();
+      const citta=document.getElementById("ind_citta").value.trim();
+      const prov=document.getElementById("ind_prov").value.trim();
+      let str = via;
+      if(civico) str += (str?" ":"")+civico;
+      const capCitta=[cap,citta].filter(Boolean).join(" ");
+      if(capCitta) str += (str?", ":"")+capCitta;
+      if(prov) str += ` (${prov.toUpperCase()})`;
+      preview.textContent = str ? "Anteprima: "+str : "";
+    }
+    ids.forEach(id=> document.getElementById(id).addEventListener("input", updatePreview));
+    updatePreview();
+
+    const capInput = document.getElementById("ind_cap");
+    const cittaInput = document.getElementById("ind_citta");
+    const provInput = document.getElementById("ind_prov");
+    const capBox = document.getElementById("capSuggest");
+    const cittaBox = document.getElementById("cittaSuggest");
+
+    // Città -> CAP + Provincia (se il comune ha piu' CAP, li mostra da scegliere)
+    wireSuggest(cittaInput, cittaBox, ()=>CAP_AL_ACTIVE.map(([n])=>n), n=>n, (nome)=>{
+      cittaInput.value = nome;
+      provInput.value = "AL";
+      const caps = capsByComune(nome);
+      if(caps.length <= 1){
+        capInput.value = caps[0] || "";
+        updatePreview();
+      } else {
+        capInput.value = "";
+        capBox.innerHTML = caps.map((c,i)=>`<div class="opt" data-i="${i}">${c}</div>`).join("");
+        capBox.classList.add("show");
+        capBox.querySelectorAll(".opt").forEach(el=>{
+          el.addEventListener("mousedown", e=>{
+            e.preventDefault();
+            capInput.value = caps[+el.dataset.i];
+            capBox.classList.remove("show");
+            updatePreview();
+          });
+        });
+        capInput.focus();
+        updatePreview();
+      }
+    });
+
+    // CAP -> Città + Provincia (se un solo comune corrisponde; altrimenti scegli dall'elenco)
+    capInput.addEventListener("input", ()=>{
+      const cap = capInput.value.trim();
+      if(cap.length !== 5){ capBox.classList.remove("show"); capBox.innerHTML=""; return; }
+      const matches = comuniByCap(cap);
+      if(matches.length === 1){
+        cittaInput.value = matches[0];
+        provInput.value = "AL";
+        capBox.classList.remove("show");
+        updatePreview();
+      } else if(matches.length > 1){
+        capBox.innerHTML = matches.map((n,i)=>`<div class="opt" data-i="${i}">${n}</div>`).join("");
+        capBox.classList.add("show");
+        capBox.querySelectorAll(".opt").forEach(el=>{
+          el.addEventListener("mousedown", e=>{
+            e.preventDefault();
+            cittaInput.value = matches[+el.dataset.i];
+            provInput.value = "AL";
+            capBox.classList.remove("show");
+            updatePreview();
+          });
+        });
+      } else {
+        capBox.classList.remove("show"); capBox.innerHTML="";
+      }
+    });
   }
 
   if(s.type==="group"){
@@ -340,10 +486,11 @@ function wireStep(s){
       if(!input || !box) return;
       if(f.suggest==="professionisti"){
         wireSuggest(input, box, allProfessionisti, p=>`${p.nome} — ${p.ruolo}`, (picked)=>{
-          const cur = input.value.trim();
-          const toAdd = `${picked.nome} (${picked.ruolo})`;
-          input.value = cur ? cur+", "+toAdd : toAdd;
-        });
+          const parts = input.value.split(",").map(s=>s.trim()).filter(Boolean);
+          parts.pop(); // rimuove il testo parziale che si stava digitando (es. "geo")
+          parts.push(`${picked.nome} (${picked.ruolo})`);
+          input.value = parts.join(", ") + ", ";
+        }, true);
       } else {
         const listFn = f.suggest==="direttori" ? allDirettori : allCoordinatori;
         wireSuggest(input, box, listFn, name=>name, (picked)=>{ input.value = picked; });
@@ -399,6 +546,13 @@ function wireStep(s){
         addSigner(row.titolare || "", row.nome || "Impresa presente");
       });
     });
+    document.querySelectorAll(".quick-add[data-prof-i]").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        const p = parseProfessionisti(answers.professionisti)[+b.dataset.profI];
+        if(!p) return;
+        addSigner(p.nome, p.ruolo);
+      });
+    });
   }
 
   if(s.type==="review") renderReview();
@@ -407,8 +561,16 @@ function wireStep(s){
 }
 
 function onNext(s){
-  if(s.type==="text" || s.type==="address" || s.type==="voice" || s.type==="checktext"){
+  if(s.type==="text" || s.type==="voice" || s.type==="checktext"){
     answers[s.id] = document.getElementById("field").value.trim();
+  }
+  if(s.type==="indirizzoStruct"){
+    answers.indirizzoVia = document.getElementById("ind_via").value.trim();
+    answers.indirizzoCivico = document.getElementById("ind_civico").value.trim();
+    answers.indirizzoCap = document.getElementById("ind_cap").value.trim();
+    answers.indirizzoCitta = document.getElementById("ind_citta").value.trim();
+    answers.indirizzoProvincia = document.getElementById("ind_prov").value.trim();
+    answers.indirizzo = combinaIndirizzo();
   }
   if(s.type==="group"){
     s.fields.forEach(f=>{ answers[f.id] = document.getElementById("gf_"+f.id).value.trim(); });
@@ -480,7 +642,7 @@ function bumpContatore(){
 // da chiamare quando il verbale viene completato: ricorda cliente, imprese, direttore e coordinatore
 function rememberAnagrafica(){
   const a = localAnagrafica();
-  let clienteNuovo = false, impreseNuove = [];
+  let clienteNuovo = false, impreseNuove = [], direttoreNuovo = false, coordinatoreNuovo = false, professionistiNuovi = [];
 
   if(answers.committente){
     const key = answers.committente.toLowerCase();
@@ -491,28 +653,50 @@ function rememberAnagrafica(){
     if(idx>=0) a.clienti[idx]=entry; else a.clienti.unshift(entry);
     a.clienti = a.clienti.slice(0,50);
   }
+
+  // un'impresa conta come "novità da salvare" se non avevamo ancora questa esatta
+  // combinazione nome+titolare — così un nuovo preposto/responsabile per un'azienda
+  // già nota viene comunque registrato, non solo aziende mai viste prima.
   imprese.forEach(r=>{
     if(!r.nome) return;
-    const key = r.nome.toLowerCase();
-    const giaNota = a.imprese.some(x=>x.impresa.toLowerCase()===key) || sheetAnagrafica.imprese.some(x=>x.impresa.toLowerCase()===key);
+    const key = r.nome.toLowerCase()+"|"+(r.titolare||"").toLowerCase();
+    const giaNota = a.imprese.some(x=>(x.impresa.toLowerCase()+"|"+(x.titolare||"").toLowerCase())===key)
+      || sheetAnagrafica.imprese.some(x=>(x.impresa.toLowerCase()+"|"+(x.titolare||"").toLowerCase())===key);
     if(!giaNota) impreseNuove.push({impresa:r.nome, titolare:r.titolare||""});
-    const idx = a.imprese.findIndex(x=>x.impresa.toLowerCase()===key);
+    const idxN = a.imprese.findIndex(x=>x.impresa.toLowerCase()===r.nome.toLowerCase());
     const entry = {impresa:r.nome, titolare:r.titolare||""};
-    if(idx>=0) a.imprese[idx]=entry; else a.imprese.unshift(entry);
+    if(idxN>=0) a.imprese[idxN]=entry; else a.imprese.unshift(entry);
   });
   a.imprese = a.imprese.slice(0,80);
 
-  a.direttori = rememberName(a.direttori, answers.direzioneLavori);
-  a.coordinatori = rememberName(a.coordinatori, answers.coordinatoreSicurezza);
+  if(answers.direzioneLavori){
+    const key = answers.direzioneLavori.toLowerCase();
+    direttoreNuovo = !(a.direttori.some(n=>n.toLowerCase()===key) || sheetAnagrafica.direttori.some(n=>n.toLowerCase()===key));
+    a.direttori = rememberName(a.direttori, answers.direzioneLavori);
+  }
+  if(answers.coordinatoreSicurezza){
+    const key = answers.coordinatoreSicurezza.toLowerCase();
+    coordinatoreNuovo = !(a.coordinatori.some(n=>n.toLowerCase()===key) || sheetAnagrafica.coordinatori.some(n=>n.toLowerCase()===key));
+    a.coordinatori = rememberName(a.coordinatori, answers.coordinatoreSicurezza);
+  }
+
+  parseProfessionisti(answers.professionisti).forEach(p=>{
+    const key = p.nome.toLowerCase()+"|"+p.ruolo.toLowerCase();
+    const giaNoto = sheetAnagrafica.professionisti.some(x=>(x.nome.toLowerCase()+"|"+x.ruolo.toLowerCase())===key);
+    if(!giaNoto) professionistiNuovi.push(p);
+  });
 
   saveLocalAnagrafica(a);
   bumpContatore();
 
-  // scrittura opzionale sul Google Sheet (nuovi contatti soltanto)
+  // scrittura opzionale sul Google Sheet (solo cio' che e' effettivamente nuovo)
   if(clienteNuovo && answers.committente){
     pushToSheet("cliente", {cliente:answers.committente, indirizzo:answers.indirizzo||""});
   }
   impreseNuove.forEach(r=> pushToSheet("impresa", {impresa:r.impresa, titolare:r.titolare}));
+  if(direttoreNuovo) pushToSheet("direttore", {direttore: answers.direzioneLavori});
+  if(coordinatoreNuovo) pushToSheet("coordinatore", {coordinatore: answers.coordinatoreSicurezza});
+  professionistiNuovi.forEach(p=> pushToSheet("professionista", {ruolo:p.ruolo, professionista:p.nome}));
 }
 
 async function pushToSheet(type, data){
@@ -611,10 +795,72 @@ function allProfessionisti(){
 }
 
 // dropdown generico riusabile per suggerimenti anagrafica
-function wireSuggest(inputEl, boxEl, listOrFn, labelFn, onPick){
+// Interpreta il campo "Altri professionisti" (testo libero, es. "Mario Rossi (Geometra), Ada Neri")
+// in una lista di {nome, ruolo} da poter aggiungere come firmatari rapidi.
+function combinaIndirizzo(){
+  const via = (answers.indirizzoVia||"").trim();
+  const civico = (answers.indirizzoCivico||"").trim();
+  const cap = (answers.indirizzoCap||"").trim();
+  const citta = (answers.indirizzoCitta||"").trim();
+  const prov = (answers.indirizzoProvincia||"").trim();
+  let s = via;
+  if(civico) s += (s ? " " : "") + civico;
+  const capCitta = [cap, citta].filter(Boolean).join(" ");
+  if(capCitta) s += (s ? ", " : "") + capCitta;
+  if(prov) s += ` (${prov.toUpperCase()})`;
+  return s.trim();
+}
+
+// Divide un indirizzo scritto per intero (es. da un vecchio elenco Excel) nei singoli campi.
+// È un tentativo "migliore possibile": funziona bene con i formati comuni,
+// ma i campi restano comunque modificabili se qualcosa non torna esatto.
+function parseIndirizzo(str){
+  const out = {via:"", civico:"", cap:"", citta:"", prov:""};
+  if(!str) return out;
+  let s = str.trim();
+
+  const provM = s.match(/\(([A-Za-z]{2})\)\s*$/);
+  if(provM){ out.prov = provM[1].toUpperCase(); s = s.slice(0, provM.index).trim(); }
+
+  let parts = s.split(",").map(p=>p.trim()).filter(Boolean);
+
+  let viaCivico = "", capCitta = "";
+  if(parts.length >= 3){
+    // "Via Roma, 7, 15060 Albera Ligure"
+    viaCivico = parts[0] + " " + parts[1];
+    capCitta = parts.slice(2).join(" ");
+  } else if(parts.length === 2){
+    // "Via Dante Alighieri 42, 15121 Alessandria"
+    viaCivico = parts[0];
+    capCitta = parts[1];
+  } else {
+    viaCivico = parts[0] || "";
+  }
+
+  const capM = capCitta.match(/(\d{5})/);
+  if(capM){ out.cap = capM[1]; out.citta = capCitta.replace(capM[1], "").trim(); }
+  else { out.citta = capCitta.trim(); }
+
+  const civM = viaCivico.match(/^(.*\D)\s*(\d+[a-zA-Z]?(?:\/\d+[a-zA-Z]?)?)$/);
+  if(civM){ out.via = civM[1].trim(); out.civico = civM[2].trim(); }
+  else { out.via = viaCivico.trim(); }
+
+  return out;
+}
+
+function parseProfessionisti(text){
+  if(!text) return [];
+  return text.split(",").map(s=>s.trim()).filter(Boolean).map(seg=>{
+    const m = seg.match(/^(.*)\(([^()]+)\)$/);
+    return m ? {nome: m[1].trim(), ruolo: m[2].trim()} : {nome: seg, ruolo: "Professionista"};
+  });
+}
+
+function wireSuggest(inputEl, boxEl, listOrFn, labelFn, onPick, multi){
   function refresh(){
     const list = typeof listOrFn === "function" ? listOrFn() : listOrFn;
-    const q = inputEl.value.trim().toLowerCase();
+    const raw = multi ? inputEl.value.split(",").pop() : inputEl.value;
+    const q = raw.trim().toLowerCase();
     if(!q){ boxEl.classList.remove("show"); boxEl.innerHTML=""; return; }
     const matches = list.filter(item=> labelFn(item).toLowerCase().includes(q)).slice(0,6);
     if(!matches.length){ boxEl.classList.remove("show"); boxEl.innerHTML=""; return; }
@@ -712,6 +958,10 @@ function openSettings(){
       <label class="field-label">Google Maps API key</label>
       <input type="password" id="setMaps" placeholder="AIzaSy..." value="${cur.mapsKey||''}">
 
+      <label class="field-label" style="margin-top:14px;">URL Google Sheet Comuni/CAP (CSV, opzionale)</label>
+      <input type="text" id="setCapSheet" placeholder="https://docs.google.com/.../pub?output=csv" value="${cur.capSheetUrl||''}">
+      <p class="hint">Foglio con colonne "comune" e "cap". Se lo configuri, sostituisce l'elenco integrato dei 187 comuni di Alessandria — utile se vuoi correggerlo o estenderlo ad altre province.</p>
+
       <h3 style="margin-top:22px;">Dati locali</h3>
       <p class="hint">Cancella la memoria di questo dispositivo (clienti, imprese, direttori/coordinatori ricordati e numerazione). Non tocca il tuo Google Sheet — quello va pulito a parte, direttamente li'.</p>
       <button class="btn btn-ghost" id="setClearLocal" style="width:100%;">Cancella cronologia locale</button>
@@ -739,10 +989,12 @@ function openSettings(){
       sheetWriteUrl: document.getElementById("setSheetWrite").value.trim(),
       odooUrl: document.getElementById("setOdooUrl").value.trim().replace(/\/+$/,""),
       odooKey: document.getElementById("setOdooKey").value.trim(),
-      mapsKey: document.getElementById("setMaps").value.trim()
+      mapsKey: document.getElementById("setMaps").value.trim(),
+      capSheetUrl: document.getElementById("setCapSheet").value.trim()
     });
     wrap.remove();
     loadAnagrafica();
+    loadCapSheet();
   });
 }
 
@@ -1396,6 +1648,7 @@ function generatePDF(){
 
 document.getElementById("gearBtn").addEventListener("click", openSettings);
 loadAnagrafica();
+loadCapSheet();
 render();
 })();
 </script>
