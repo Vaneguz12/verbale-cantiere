@@ -691,12 +691,17 @@ function rememberAnagrafica(){
   }
 
   // professionisti aggiunti col selettore titolo+nome: si salva la stringa già completa
-  // (es. "Geom. Federico Rossi"), senza bisogno di nessuna colonna "ruolo".
+  // (es. "Geom. Federico Rossi") e, separatamente, la parola per esteso del titolo
+  // (es. "Geometra") per chi vuole comunque compilare la colonna "ruolo".
   professionistiList.forEach(p=>{
     const combinato = p.titolo ? `${p.titolo} ${p.nome}` : p.nome;
     const key = combinato.toLowerCase();
     const giaNoto = a.professionisti.some(n=>n.toLowerCase()===key);
-    if(!giaNoto) professionistiNuovi.push(combinato);
+    if(!giaNoto){
+      const trovato = TITOLI_PROFESSIONALI.find(t=>t.abbr.toLowerCase()===String(p.titolo||"").toLowerCase());
+      const ruoloEsteso = trovato ? trovato.nome : (p.titolo || "");
+      professionistiNuovi.push({combinato, ruolo: ruoloEsteso});
+    }
     a.professionisti = rememberName(a.professionisti, combinato);
   });
 
@@ -710,7 +715,7 @@ function rememberAnagrafica(){
   impreseNuove.forEach(r=> pushToSheet("impresa", {impresa:r.impresa, titolare:r.titolare}));
   if(direttoreNuovo) pushToSheet("direttore", {direttore: answers.direzioneLavori});
   if(coordinatoreNuovo) pushToSheet("coordinatore", {coordinatore: answers.coordinatoreSicurezza});
-  professionistiNuovi.forEach(nome=> pushToSheet("professionista", {professionista: nome}));
+  professionistiNuovi.forEach(p=> pushToSheet("professionista", {professionista: p.combinato, ruolo: p.ruolo}));
 }
 
 async function pushToSheet(type, data){
