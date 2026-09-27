@@ -268,10 +268,14 @@ function render(){
         <button type="button" class="btn btn-ghost btn-icon" id="openGallery" style="flex:1;">${iconGallery}<span>Dalla galleria</span></button>
       </div>`;
   } else if(s.type==="signers"){
+    const impreseQuick = imprese.filter(r=>r.nome||r.titolare).map((r,i)=>
+      `<button class="quick-add" data-impresa-i="${i}">+ ${r.nome || r.titolare}</button>`
+    ).join("");
     inner += `<div class="quick-add-row">
       <button class="quick-add" data-role="Committente e Responsabile dei lavori">+ Committente</button>
       <button class="quick-add" data-role="Direzione Lavori">+ D.L.</button>
       <button class="quick-add" data-role="C.S.P.-C.S.E.">+ C.S.P.-C.S.E.</button>
+      ${impreseQuick}
     </div>
     <div id="signersBox"></div>
     <button class="add-signer-btn" id="addSignerBtn">+ Aggiungi firmatario</button>`;
@@ -329,6 +333,7 @@ function wireStep(s){
   }
 
   if(s.type==="group"){
+    if(s.id==="datiVerbale") refreshNumeroFromOdoo();
     s.fields.filter(f=>f.suggest).forEach(f=>{
       const input = document.getElementById("gf_"+f.id);
       const box = document.getElementById("sugg_"+f.id);
@@ -381,10 +386,17 @@ function wireStep(s){
       "Direzione Lavori": answers.direzioneLavori || "",
       "C.S.P.-C.S.E.": answers.coordinatoreSicurezza || ""
     };
-    document.querySelectorAll(".quick-add").forEach(b=>{
+    document.querySelectorAll(".quick-add[data-role]").forEach(b=>{
       b.addEventListener("click", ()=>{
         const ruolo = b.dataset.role;
         addSigner(nomeGiaNoto[ruolo] || "", ruolo);
+      });
+    });
+    document.querySelectorAll(".quick-add[data-impresa-i]").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        const row = imprese[+b.dataset.impresaI];
+        if(!row) return;
+        addSigner(row.titolare || "", row.nome || "Impresa presente");
       });
     });
   }
@@ -538,6 +550,20 @@ function parseCSV(text){
   });
 }
 
+// Alcune intestazioni hanno nomi diversi da un foglio all'altro (es. "N. Verbale" invece di "numero").
+// Questa funzione prova piu' varianti finche' non trova un valore compilato.
+function pickCol(row, aliases){
+  for(const a of aliases){
+    if(row[a]) return row[a];
+  }
+  return "";
+}
+const ALIASES = {
+  numero: ["numero", "n. verbale", "n verbale", "n° verbale", "num verbale"],
+  direttore: ["direttore", "d.l.", "dl", "direzione lavori"],
+  coordinatore: ["coordinatore", "c.s.p. - c.s.e.", "c.s.p.-c.s.e.", "csp-cse", "csp cse"]
+};
+
 async function loadAnagraficaSheet(){
   const cfg = getSettings();
   if(!cfg.sheetUrl) return;
@@ -545,10 +571,10 @@ async function loadAnagraficaSheet(){
     const res = await fetch(cfg.sheetUrl, {cache:"no-store"});
     const text = await res.text();
     const rows = parseCSV(text);
-    sheetAnagrafica.clienti = rows.filter(r=>r.cliente).map(r=>({cliente:r.cliente, indirizzo:r.indirizzo||"", numero:r.numero||""}));
+    sheetAnagrafica.clienti = rows.filter(r=>r.cliente).map(r=>({cliente:r.cliente, indirizzo:r.indirizzo||"", numero:pickCol(r,ALIASES.numero)}));
     sheetAnagrafica.imprese = rows.filter(r=>r.impresa).map(r=>({impresa:r.impresa, titolare:r.titolare||""}));
-    sheetAnagrafica.direttori = [...new Set(rows.filter(r=>r.direttore).map(r=>r.direttore))];
-    sheetAnagrafica.coordinatori = [...new Set(rows.filter(r=>r.coordinatore).map(r=>r.coordinatore))];
+    sheetAnagrafica.direttori = [...new Set(rows.map(r=>pickCol(r,ALIASES.direttore)).filter(Boolean))];
+    sheetAnagrafica.coordinatori = [...new Set(rows.map(r=>pickCol(r,ALIASES.coordinatore)).filter(Boolean))];
     sheetAnagrafica.professionisti = rows.filter(r=>r.ruolo && r.professionista).map(r=>({ruolo:r.ruolo, nome:r.professionista}));
   }catch(e){
     console.warn("Anagrafica: non sono riuscito a leggere il Google Sheet.", e);
@@ -674,10 +700,21 @@ function openSettings(){
       <input type="text" id="setSheetWrite" placeholder="https://script.google.com/macros/s/.../exec" value="${cur.sheetWriteUrl||''}">
       <p class="hint">Se configurato, i nuovi clienti/imprese vengono salvati automaticamente anche nel tuo Google Sheet, non solo su questo dispositivo. Richiede un piccolo Apps Script — chiedimi come crearlo.</p>
 
+      <h3 style="margin-top:22px;">Odoo (opzionale, sostituisce Google Sheet)</h3>
+      <p class="hint">Se configurato, ogni verbale completato viene salvato come record reale nel tuo Odoo (con imprese, firmatari, foto e PDF allegato), e l'anagrafica/numerazione si legge direttamente da li' — niente piu' Google Sheet. Richiede il modulo "Cantiere Verbale API" installato sul tuo Odoo.sh.</p>
+      <label class="field-label">URL base Odoo</label>
+      <input type="text" id="setOdooUrl" placeholder="https://tuo-progetto.odoo.com" value="${cur.odooUrl||''}">
+      <label class="field-label">Chiave API (X-Api-Key)</label>
+      <input type="password" id="setOdooKey" placeholder="la stessa impostata in ir.config_parameter" value="${cur.odooKey||''}">
+
       <h3 style="margin-top:22px;">Indirizzi (opzionale)</h3>
       <p class="hint">Chiave Google Maps per la ricerca automatica degli indirizzi mentre scrivi. Va creata su console.cloud.google.com (API "Places API"), con fatturazione attiva sul progetto.</p>
       <label class="field-label">Google Maps API key</label>
       <input type="password" id="setMaps" placeholder="AIzaSy..." value="${cur.mapsKey||''}">
+
+      <h3 style="margin-top:22px;">Dati locali</h3>
+      <p class="hint">Cancella la memoria di questo dispositivo (clienti, imprese, direttori/coordinatori ricordati e numerazione). Non tocca il tuo Google Sheet — quello va pulito a parte, direttamente li'.</p>
+      <button class="btn btn-ghost" id="setClearLocal" style="width:100%;">Cancella cronologia locale</button>
 
       <div class="nav-row" style="margin-top:16px;">
         <button class="btn btn-ghost" id="setClose">Chiudi</button>
@@ -687,16 +724,25 @@ function openSettings(){
   document.body.appendChild(wrap);
   wrap.addEventListener("click", e=>{ if(e.target===wrap) wrap.remove(); });
   document.getElementById("setClose").addEventListener("click", ()=> wrap.remove());
+  document.getElementById("setClearLocal").addEventListener("click", ()=>{
+    if(confirm("Cancellare clienti, imprese e numerazione salvati su questo dispositivo? Non si puo' annullare.")){
+      localStorage.removeItem("verbaleAnagrafica");
+      localStorage.removeItem("verbaleContatori");
+      alert("Cronologia locale cancellata.");
+    }
+  });
   document.getElementById("setSave").addEventListener("click", ()=>{
     saveSettings({
       geminiKey: document.getElementById("setKey").value.trim(),
       geminiModel: document.getElementById("setModel").value.trim() || "gemini-2.5-flash",
       sheetUrl: document.getElementById("setSheet").value.trim(),
       sheetWriteUrl: document.getElementById("setSheetWrite").value.trim(),
+      odooUrl: document.getElementById("setOdooUrl").value.trim().replace(/\/+$/,""),
+      odooKey: document.getElementById("setOdooKey").value.trim(),
       mapsKey: document.getElementById("setMaps").value.trim()
     });
     wrap.remove();
-    loadAnagraficaSheet();
+    loadAnagrafica();
   });
 }
 
@@ -1176,6 +1222,84 @@ function photoPages(doc){
   });
 }
 
+function dataUrlToBase64(dataUrl){
+  if(!dataUrl) return null;
+  const i = dataUrl.indexOf(",");
+  return i>=0 ? dataUrl.slice(i+1) : dataUrl;
+}
+async function blobToBase64(blob){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=> resolve(dataUrlToBase64(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function saveVerbaleToOdoo(pdfBlob, pdfFilename){
+  const cfg = getSettings();
+  const pdfBase64 = await blobToBase64(pdfBlob);
+  const payload = {
+    tipoVerbale: answers.tipoVerbale, numero: answers.numero,
+    data: answers.data, ora: answers.ora, dataFine: answers.dataFine, oraFine: answers.oraFine,
+    committente: answers.committente, indirizzo: answers.indirizzo,
+    direzioneLavori: answers.direzioneLavori, coordinatoreSicurezza: answers.coordinatoreSicurezza,
+    professionisti: answers.professionisti,
+    lavorazioni: answers.lavorazioni,
+    docPresente: answers.docPresente, orgRispettata: answers.orgRispettata, dpiRispettato: answers.dpiRispettato,
+    segnalazioni: answers.segnalazioni,
+    sospensione: answers.sospensione_on ? (answers.sospensione||"Sì") : "",
+    ripresa: answers.ripresa_on ? (answers.ripresa||"Sì") : "",
+    note: answers.noteVarie,
+    imprese: imprese.filter(r=>r.nome||r.titolare).map(r=>({nome:r.nome||"", titolare:r.titolare||"", addetti:r.addetti||""})),
+    firmatari: signers.map(sg=>({nome:sg.nombre||"", ruolo:sg.rol||"", firmaBase64: dataUrlToBase64(sg.firma)})),
+    foto: photos.map(p=> dataUrlToBase64(p)),
+    pdfBase64: pdfBase64,
+    pdfFilename: pdfFilename
+  };
+  const res = await fetch(cfg.odooUrl+"/verbale/api/save", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", "X-Api-Key": cfg.odooKey},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok || data.error) throw new Error(data.error || ("HTTP "+res.status));
+  return data; // {result:"ok", id: ...}
+}
+
+async function loadAnagraficaOdoo(){
+  const cfg = getSettings();
+  if(!cfg.odooUrl || !cfg.odooKey) return;
+  try{
+    const res = await fetch(cfg.odooUrl+"/verbale/api/anagrafica", {headers:{"X-Api-Key": cfg.odooKey}});
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    sheetAnagrafica.clienti = data.clienti || [];
+    sheetAnagrafica.imprese = data.imprese || [];
+    sheetAnagrafica.direttori = data.direttori || [];
+    sheetAnagrafica.coordinatori = data.coordinatori || [];
+    sheetAnagrafica.professionisti = data.professionisti || [];
+  }catch(e){
+    console.warn("Odoo: non sono riuscito a leggere l'anagrafica.", e);
+  }
+}
+async function loadAnagrafica(){
+  const cfg = getSettings();
+  if(cfg.odooUrl && cfg.odooKey){ await loadAnagraficaOdoo(); }
+  else { await loadAnagraficaSheet(); }
+}
+function refreshNumeroFromOdoo(){
+  const cfg = getSettings();
+  if(!cfg.odooUrl || !cfg.odooKey || !answers.committente) return;
+  const input = document.getElementById("gf_numero");
+  if(!input) return;
+  const before = input.value;
+  fetch(cfg.odooUrl+"/verbale/api/numero?cliente="+encodeURIComponent(answers.committente), {headers:{"X-Api-Key": cfg.odooKey}})
+    .then(r=>r.json())
+    .then(d=>{ if(d && d.numero && input.value===before) input.value = String(d.numero); })
+    .catch(()=>{});
+}
+
 async function deliver(){
   buildData();
   const doc = styleB();
@@ -1188,12 +1312,14 @@ async function deliver(){
 
 function generatePDF(){
   buildData();
-  rememberAnagrafica();
+  const cfg = getSettings();
+  const usaOdoo = !!(cfg.odooUrl && cfg.odooKey);
+
   app.innerHTML = `
     <div class="card">
       <div class="final-icon">${ICON_CHECK}</div>
       <div class="final-title">Verbale completato</div>
-      <div class="final-sub">Il documento è pronto. Puoi scaricarlo o inviarlo direttamente via email.</div>
+      <div class="final-sub" id="finalSub">${usaOdoo ? "Salvataggio in Odoo in corso..." : "Il documento è pronto. Puoi scaricarlo o inviarlo direttamente via email."}</div>
       <div id="pdfPreview" style="margin-bottom:14px;"></div>
       <div class="nav-row">
         <button class="btn btn-ghost" style="flex:1;" id="previewBtn">Anteprima</button>
@@ -1202,6 +1328,20 @@ function generatePDF(){
       <button class="btn btn-ghost btn-icon" style="width:100%;margin-top:10px;" id="emailBtn">${ICON_MAIL}<span>Invia / allega a email</span></button>
       <button class="btn btn-ghost" style="width:100%;margin-top:10px;" id="restartBtn">Nuovo verbale</button>
     </div>`;
+
+  if(usaOdoo){
+    const doc = styleB();
+    const blob = doc.output("blob");
+    const filename = `verbale-${(D.numero||"senza-numero").replace(/[^\w-]+/g,"_")}.pdf`;
+    saveVerbaleToOdoo(blob, filename).then(res=>{
+      document.getElementById("finalSub").textContent = "Salvato in Odoo (record #"+res.id+"). Puoi anche scaricarlo o inviarlo via email.";
+      loadAnagraficaOdoo(); // aggiorna la cache dei suggerimenti con questo nuovo verbale
+    }).catch(err=>{
+      document.getElementById("finalSub").textContent = "Il PDF è pronto, ma il salvataggio in Odoo non è riuscito: "+err.message+". Puoi comunque scaricarlo o inviarlo.";
+    });
+  } else {
+    rememberAnagrafica();
+  }
 
   document.getElementById("downloadBtn").addEventListener("click", async ()=>{
     const btn = document.getElementById("downloadBtn");
@@ -1255,7 +1395,7 @@ function generatePDF(){
 }
 
 document.getElementById("gearBtn").addEventListener("click", openSettings);
-loadAnagraficaSheet();
+loadAnagrafica();
 render();
 })();
 </script>
