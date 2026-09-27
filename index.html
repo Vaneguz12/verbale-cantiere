@@ -317,7 +317,7 @@ function wireStep(s){
   if(s.type==="text" && s.id==="committente"){
     const input = document.getElementById("field");
     const box = document.getElementById("clienteSuggest");
-    wireSuggest(input, box, allClienti(), c=>c.cliente, (picked)=>{
+    wireSuggest(input, box, allClienti, c=>c.cliente, (picked)=>{
       input.value = picked.cliente;
       answers.committente = picked.cliente;
       if(picked.indirizzo) answers.indirizzo = picked.indirizzo;
@@ -334,14 +334,14 @@ function wireStep(s){
       const box = document.getElementById("sugg_"+f.id);
       if(!input || !box) return;
       if(f.suggest==="professionisti"){
-        wireSuggest(input, box, allProfessionisti(), p=>`${p.nome} — ${p.ruolo}`, (picked)=>{
+        wireSuggest(input, box, allProfessionisti, p=>`${p.nome} — ${p.ruolo}`, (picked)=>{
           const cur = input.value.trim();
           const toAdd = `${picked.nome} (${picked.ruolo})`;
           input.value = cur ? cur+", "+toAdd : toAdd;
         });
       } else {
-        const list = f.suggest==="direttori" ? allDirettori() : allCoordinatori();
-        wireSuggest(input, box, list, name=>name, (picked)=>{ input.value = picked; });
+        const listFn = f.suggest==="direttori" ? allDirettori : allCoordinatori;
+        wireSuggest(input, box, listFn, name=>name, (picked)=>{ input.value = picked; });
       }
     });
   }
@@ -376,8 +376,16 @@ function wireStep(s){
   if(s.type==="signers"){
     renderSigners();
     document.getElementById("addSignerBtn").addEventListener("click", ()=>{ addSigner("",""); });
+    const nomeGiaNoto = {
+      "Committente e Responsabile dei lavori": answers.committente || "",
+      "Direzione Lavori": answers.direzioneLavori || "",
+      "C.S.P.-C.S.E.": answers.coordinatoreSicurezza || ""
+    };
     document.querySelectorAll(".quick-add").forEach(b=>{
-      b.addEventListener("click", ()=>{ addSigner("", b.dataset.role); });
+      b.addEventListener("click", ()=>{
+        const ruolo = b.dataset.role;
+        addSigner(nomeGiaNoto[ruolo] || "", ruolo);
+      });
     });
   }
 
@@ -430,20 +438,31 @@ function rememberName(list, name){
 function getContatori(){
   try{ return JSON.parse(localStorage.getItem("verbaleContatori")||"{}"); }catch(e){ return {}; }
 }
+function numeroDaSheet(cliente){
+  if(!cliente) return 0;
+  const key = cliente.trim().toLowerCase();
+  const row = sheetAnagrafica.clienti.find(c=>c.cliente.toLowerCase()===key);
+  const n = row ? parseInt(row.numero, 10) : 0;
+  return isNaN(n) ? 0 : n;
+}
 function suggestNumero(cliente){
   if(!cliente) return "";
   const c = getContatori();
   const key = cliente.trim().toLowerCase();
-  return String((c[key]||0)+1);
+  const locale = c[key]||0;
+  const daSheet = numeroDaSheet(cliente);
+  return String(Math.max(locale, daSheet)+1);
 }
 function bumpContatore(){
   if(!answers.committente) return;
   const c = getContatori();
   const key = answers.committente.trim().toLowerCase();
   const numVal = parseInt(answers.numero, 10);
-  const current = c[key]||0;
-  c[key] = isNaN(numVal) ? current+1 : Math.max(current, numVal);
+  const current = Math.max(c[key]||0, numeroDaSheet(answers.committente));
+  const finale = isNaN(numVal) ? current+1 : Math.max(current, numVal);
+  c[key] = finale;
   localStorage.setItem("verbaleContatori", JSON.stringify(c));
+  pushToSheet("numero", {cliente: answers.committente, numero: finale});
 }
 
 // da chiamare quando il verbale viene completato: ricorda cliente, imprese, direttore e coordinatore
@@ -526,7 +545,7 @@ async function loadAnagraficaSheet(){
     const res = await fetch(cfg.sheetUrl, {cache:"no-store"});
     const text = await res.text();
     const rows = parseCSV(text);
-    sheetAnagrafica.clienti = rows.filter(r=>r.cliente).map(r=>({cliente:r.cliente, indirizzo:r.indirizzo||""}));
+    sheetAnagrafica.clienti = rows.filter(r=>r.cliente).map(r=>({cliente:r.cliente, indirizzo:r.indirizzo||"", numero:r.numero||""}));
     sheetAnagrafica.imprese = rows.filter(r=>r.impresa).map(r=>({impresa:r.impresa, titolare:r.titolare||""}));
     sheetAnagrafica.direttori = [...new Set(rows.filter(r=>r.direttore).map(r=>r.direttore))];
     sheetAnagrafica.coordinatori = [...new Set(rows.filter(r=>r.coordinatore).map(r=>r.coordinatore))];
@@ -566,8 +585,9 @@ function allProfessionisti(){
 }
 
 // dropdown generico riusabile per suggerimenti anagrafica
-function wireSuggest(inputEl, boxEl, list, labelFn, onPick){
+function wireSuggest(inputEl, boxEl, listOrFn, labelFn, onPick){
   function refresh(){
+    const list = typeof listOrFn === "function" ? listOrFn() : listOrFn;
     const q = inputEl.value.trim().toLowerCase();
     if(!q){ boxEl.classList.remove("show"); boxEl.innerHTML=""; return; }
     const matches = list.filter(item=> labelFn(item).toLowerCase().includes(q)).slice(0,6);
