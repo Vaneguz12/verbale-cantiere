@@ -1042,7 +1042,7 @@ function openSettings(){
       <label class="field-label">Gemini API key</label>
       <input type="password" id="setKey" placeholder="AIzaSy..." value="${cur.geminiKey||''}">
       <label class="field-label">Modello (opzionale)</label>
-      <input type="text" id="setModel" placeholder="gemini-2.5-flash" value="${cur.geminiModel||''}">
+      <input type="text" id="setModel" placeholder="gemini-1.5-flash" value="${cur.geminiModel||''}">
 
       <h3 style="margin-top:22px;">Anagrafica (opzionale)</h3>
       <p class="hint">Link "pubblicato sul web" (formato CSV) del tuo Google Sheet. Colonne riconosciute: cliente, indirizzo, impresa, titolare, direttore, coordinatore. Puoi continuare a modificare il foglio quando vuoi: la app rilegge i dati aggiornati a ogni apertura.</p>
@@ -1108,10 +1108,10 @@ function openSettings(){
 async function polishWithGemini(rawText){
   const cfg = getSettings();
   if(!cfg.geminiKey) throw new Error("no-key");
-  
-  // Usamos el endpoint y modelo oficial de Google AI Studio
-  const modelName = "gemini-1.5-flash";
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${cfg.geminiKey.trim()}`;
+  const model = (cfg.geminiModel || "gemini-1.5-flash").trim();
+  // La chiave viaggia nell'header (non nell'URL): non resta nella cronologia
+  // del browser né nei log dei server intermedi.
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   const prompt = `Sei un assistente tecnico esperto nella redazione di verbali di cantiere e Direzione Lavori (D.Lgs. 81/08).
 Riformula il seguente testo dettato a voce durante un sopralluogo in cantiere.
@@ -1128,26 +1128,45 @@ Testo originale:
 
   const res = await fetch(endpoint, {
     method: "POST",
-    headers: { 
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ 
-      contents: [{ 
-        parts: [{ text: prompt }] 
-      }] 
-    })
+    headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.geminiKey.trim() },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
   });
 
-  if(!res.ok){ 
-    const errText = await res.text().catch(()=> ""); 
-    console.error("Error API Gemini:", res.status, errText);
-    throw new Error("api-error: " + res.status); 
+  if(!res.ok){
+    const errText = await res.text().catch(()=> "");
+    console.error("Errore API Gemini:", res.status, errText);
+    throw new Error("api-error: " + res.status);
   }
-  
+
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   if(!text) throw new Error("empty-response");
   return text;
+}
+function wirePolishButton(){
+  const btn = document.getElementById("polishBtn");
+  const hint = document.getElementById("polishHint");
+  if(!btn) return;
+  btn.addEventListener("click", async ()=>{
+    const field = document.getElementById("field");
+    const raw = field.value.trim();
+    if(!raw){ hint.textContent = "Scrivi o detta prima qualcosa."; return; }
+    btn.disabled = true; btn.textContent = "Miglioro in corso...";
+    hint.textContent = "";
+    try{
+      const polished = await polishWithGemini(raw);
+      field.value = polished;
+      field.dispatchEvent(new Event("input", {bubbles:true}));
+      hint.textContent = "Testo migliorato con Gemini.";
+    }catch(e){
+      if(e.message === "no-key"){
+        hint.textContent = "Configura la tua chiave Gemini in Impostazioni (icona in alto) per usare questa funzione.";
+      } else {
+        hint.textContent = "Non sono riuscito a contattare Gemini. Riprova, o continua a scrivere manualmente.";
+      }
+    }
+    btn.disabled = false; btn.textContent = "Migliora con AI";
+  });
 }
 
 // ---------- Voce universale: qualsiasi campo con [data-mic] ----------
