@@ -1042,7 +1042,7 @@ function openSettings(){
       <label class="field-label">Gemini API key</label>
       <input type="password" id="setKey" placeholder="AIzaSy..." value="${cur.geminiKey||''}">
       <label class="field-label">Modello (opzionale)</label>
-      <input type="text" id="setModel" placeholder="gemini-1.5-flash" value="${cur.geminiModel||''}">
+      <input type="text" id="setModel" placeholder="gemini-3.5-flash" value="${cur.geminiModel||''}">
 
       <h3 style="margin-top:22px;">Anagrafica (opzionale)</h3>
       <p class="hint">Link "pubblicato sul web" (formato CSV) del tuo Google Sheet. Colonne riconosciute: cliente, indirizzo, impresa, titolare, direttore, coordinatore. Puoi continuare a modificare il foglio quando vuoi: la app rilegge i dati aggiornati a ogni apertura.</p>
@@ -1090,7 +1090,7 @@ function openSettings(){
   document.getElementById("setSave").addEventListener("click", ()=>{
     saveSettings({
       geminiKey: document.getElementById("setKey").value.trim(),
-      geminiModel: document.getElementById("setModel").value.trim() || "gemini-1.5-flash",
+      geminiModel: document.getElementById("setModel").value.trim() || "gemini-3.5-flash",
       sheetUrl: document.getElementById("setSheet").value.trim(),
       sheetWriteUrl: document.getElementById("setSheetWrite").value.trim(),
       odooUrl: document.getElementById("setOdooUrl").value.trim().replace(/\/+$/,""),
@@ -1108,7 +1108,7 @@ function openSettings(){
 async function polishWithGemini(rawText){
   const cfg = getSettings();
   if(!cfg.geminiKey) throw new Error("no-key");
-  const model = (cfg.geminiModel || "gemini-1.5-flash").trim();
+  const model = (cfg.geminiModel || "gemini-3.5-flash").trim();
   // La chiave via header (x-goog-api-key) fallisce il controllo CORS del browser
   // per questa API se chiamata senza un server proprio dietro — quindi la chiave
   // passa nella URL, l'unico modo che funziona in modo affidabile da qui.
