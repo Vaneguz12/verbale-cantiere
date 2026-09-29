@@ -1109,9 +1109,10 @@ async function polishWithGemini(rawText){
   const cfg = getSettings();
   if(!cfg.geminiKey) throw new Error("no-key");
   const model = (cfg.geminiModel || "gemini-1.5-flash").trim();
-  // La chiave viaggia nell'header (non nell'URL): non resta nella cronologia
-  // del browser né nei log dei server intermedi.
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  // La chiave via header (x-goog-api-key) fallisce il controllo CORS del browser
+  // per questa API se chiamata senza un server proprio dietro — quindi la chiave
+  // passa nella URL, l'unico modo che funziona in modo affidabile da qui.
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(cfg.geminiKey.trim())}`;
 
   const prompt = `Sei un assistente tecnico esperto nella redazione di verbali di cantiere e Direzione Lavori (D.Lgs. 81/08).
 Riformula il seguente testo dettato a voce durante un sopralluogo in cantiere.
@@ -1128,7 +1129,7 @@ Testo originale:
 
   const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.geminiKey.trim() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
   });
 
@@ -1162,7 +1163,8 @@ function wirePolishButton(){
       if(e.message === "no-key"){
         hint.textContent = "Configura la tua chiave Gemini in Impostazioni (icona in alto) per usare questa funzione.";
       } else {
-        hint.textContent = "Non sono riuscito a contattare Gemini. Riprova, o continua a scrivere manualmente.";
+        hint.textContent = "Errore Gemini: " + e.message + " — controlla la chiave/modello in Impostazioni.";
+        console.error("Dettaglio errore Gemini:", e);
       }
     }
     btn.disabled = false; btn.textContent = "Migliora con AI";
