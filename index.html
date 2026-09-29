@@ -1090,7 +1090,7 @@ function openSettings(){
   document.getElementById("setSave").addEventListener("click", ()=>{
     saveSettings({
       geminiKey: document.getElementById("setKey").value.trim(),
-      geminiModel: document.getElementById("setModel").value.trim() || "gemini-2.5-flash",
+      geminiModel: document.getElementById("setModel").value.trim() || "gemini-1.5-flash",
       sheetUrl: document.getElementById("setSheet").value.trim(),
       sheetWriteUrl: document.getElementById("setSheetWrite").value.trim(),
       odooUrl: document.getElementById("setOdooUrl").value.trim().replace(/\/+$/,""),
@@ -1108,43 +1108,46 @@ function openSettings(){
 async function polishWithGemini(rawText){
   const cfg = getSettings();
   if(!cfg.geminiKey) throw new Error("no-key");
-  const model = cfg.geminiModel || "gemini-2.5-flash";
-  const prompt = `Riformula il seguente testo, dettato a voce durante un sopralluogo in cantiere, in italiano tecnico e professionale adatto a un verbale ufficiale: forma impersonale, frasi chiare e concise, punteggiatura corretta, senza esitazioni o ripetizioni tipiche del parlato. Non inventare informazioni non presenti nel testo originale. Restituisci SOLO il testo riformulato, senza introduzioni né commenti.\n\nTesto originale:\n"""${rawText}"""`;
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  
+  // Usamos el endpoint y modelo oficial de Google AI Studio
+  const modelName = "gemini-1.5-flash";
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${cfg.geminiKey.trim()}`;
+
+  const prompt = `Sei un assistente tecnico esperto nella redazione di verbali di cantiere e Direzione Lavori (D.Lgs. 81/08).
+Riformula il seguente testo dettato a voce durante un sopralluogo in cantiere.
+
+Regole:
+1. Usa un italiano tecnico, formale e impersonale.
+2. Correggi la punteggiatura e la grammatica.
+3. Mantieni i termini tecnici della costruzione e della sicurezza.
+4. NON inventare informazioni assenti nel testo originale.
+5. Rispondi ESCLUSIVAMENTE con il testo riformulato, senza alcuna introduzione o commento.
+
+Testo originale:
+"""${rawText}"""`;
+
+  const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.geminiKey },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    headers: { 
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ 
+      contents: [{ 
+        parts: [{ text: prompt }] 
+      }] 
+    })
   });
-  if(!res.ok){ const t = await res.text().catch(()=> ""); throw new Error("api-error: "+res.status+" "+t.slice(0,200)); }
+
+  if(!res.ok){ 
+    const errText = await res.text().catch(()=> ""); 
+    console.error("Error API Gemini:", res.status, errText);
+    throw new Error("api-error: " + res.status); 
+  }
+  
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   if(!text) throw new Error("empty-response");
   return text;
-}
-function wirePolishButton(){
-  const btn = document.getElementById("polishBtn");
-  const hint = document.getElementById("polishHint");
-  if(!btn) return;
-  btn.addEventListener("click", async ()=>{
-    const field = document.getElementById("field");
-    const raw = field.value.trim();
-    if(!raw){ hint.textContent = "Scrivi o detta prima qualcosa."; return; }
-    btn.disabled = true; btn.textContent = "Miglioro in corso...";
-    hint.textContent = "";
-    try{
-      const polished = await polishWithGemini(raw);
-      field.value = polished;
-      field.dispatchEvent(new Event("input", {bubbles:true}));
-      hint.textContent = "Testo migliorato con Gemini.";
-    }catch(e){
-      if(e.message === "no-key"){
-        hint.textContent = "Configura la tua chiave Gemini in Impostazioni (icona in alto) per usare questa funzione.";
-      } else {
-        hint.textContent = "Non sono riuscito a contattare Gemini. Riprova, o continua a scrivere manualmente.";
-      }
-    }
-    btn.disabled = false; btn.textContent = "Migliora con AI";
-  });
 }
 
 // ---------- Voce universale: qualsiasi campo con [data-mic] ----------
