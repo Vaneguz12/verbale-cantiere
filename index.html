@@ -452,7 +452,12 @@ function wireStep(s){
       geoMsg.textContent = "Ricerca della posizione in corso...";
       navigator.geolocation.getCurrentPosition(async pos=>{
         try{
-          const {latitude:lat, longitude:lon} = pos.coords;
+          const {latitude:lat, longitude:lon, accuracy:acc} = pos.coords;
+          if(acc > 1000){
+            geoMsg.textContent = "Posizione troppo imprecisa (circa "+Math.round(acc/1000)+" km): questo dispositivo non ha il GPS. Usa il telefono oppure scrivi l'indirizzo a mano.";
+            btnGeo.disabled = false;
+            return;
+          }
           const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=it&lat=${lat}&lon=${lon}`;
           const r = await fetch(url);
           if(!r.ok) throw new Error("HTTP "+r.status);
@@ -464,7 +469,7 @@ function wireStep(s){
           document.getElementById("ind_citta").value = m.citta;
           document.getElementById("ind_prov").value = m.prov || (comuniByCap(m.cap).length ? "AL" : "");
           updatePreview();
-          geoMsg.textContent = "Indirizzo compilato. Controlla e correggi se serve (il civico può essere approssimato).";
+          geoMsg.textContent = "Indirizzo compilato (precisione circa "+Math.round(acc)+" m)." + (acc>150 ? " Posizione approssimata: controlla bene via e civico." : " Controlla e correggi se serve.");
         }catch(e){
           geoMsg.textContent = "Non sono riuscito a ricavare l'indirizzo. Scrivilo a mano.";
         }
