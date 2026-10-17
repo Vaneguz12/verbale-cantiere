@@ -111,6 +111,32 @@
   .quick-add-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
   .quick-add{padding:8px 12px; border-radius:99px; border:1.5px solid var(--border); background:var(--bg); font-size:13px; font-weight:600; cursor:pointer; color:var(--text);}
   .quick-add.sel{background:var(--text); color:var(--card); border-color:var(--text);}
+
+  .photo-list{display:flex; flex-direction:column; gap:12px; margin-top:6px;}
+  .photo-item{display:flex; gap:10px; border:1px solid var(--border); border-radius:12px; padding:8px;}
+  .photo-thumb2{width:96px; height:96px; flex-shrink:0; border-radius:8px; overflow:hidden; background:#f0f0f0;}
+  .photo-thumb2 img{width:100%; height:100%; object-fit:cover; display:block;}
+  .photo-side{flex:1; min-width:0; display:flex; flex-direction:column; gap:6px;}
+  .photo-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .photo-actions .hint{margin:0; flex:1;}
+  .photo-side textarea{width:100%; min-height:48px; font-size:14px;}
+  .editor-ov,.sig-ov{position:fixed; inset:0; z-index:2000; background:#16181c; display:flex; flex-direction:column; color:#fff;}
+  .sig-ov{background:#f4f5f7; color:#111;}
+  .editor-bar{display:flex; gap:8px; justify-content:space-between; padding:10px 12px; padding-top:max(10px, env(safe-area-inset-top));}
+  .ed-btn{padding:10px 16px; border-radius:10px; border:1.5px solid rgba(128,128,128,.5); background:transparent; color:inherit; font-size:15px; font-weight:600; cursor:pointer;}
+  .ed-primary{background:#fff; color:#111; border-color:#fff;}
+  .sig-ov .ed-primary{background:#111; color:#fff; border-color:#111;}
+  .editor-stage{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:4px 8px;}
+  .editor-stage canvas{max-width:100%; max-height:100%; touch-action:none; background:#000; border-radius:4px;}
+  .editor-tools{padding:10px 12px; padding-bottom:max(10px, env(safe-area-inset-bottom)); display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:center;}
+  .ed-colors,.ed-sizes{display:flex; gap:10px; align-items:center;}
+  .ed-color{width:34px; height:34px; border-radius:50%; border:2px solid rgba(255,255,255,.55); cursor:pointer;}
+  .ed-color.sel{outline:3px solid #fff; outline-offset:2px;}
+  .ed-size{padding:8px 12px; border-radius:8px; border:1.5px solid rgba(255,255,255,.4); background:transparent; color:#fff; font-size:13px; cursor:pointer;}
+  .ed-size.sel{background:#fff; color:#111;}
+  .sig-hint{padding:0 14px 6px; font-size:13px; color:#555;}
+  .sig-stage{flex:1; min-height:0; padding:0 10px 12px; padding-bottom:max(12px, env(safe-area-inset-bottom));}
+  .sig-stage canvas{width:100%; height:100%; background:#fff; border:2px dashed #aaa; border-radius:12px; touch-action:none; display:block;}
 </style>
 </head>
 <body>
@@ -185,7 +211,7 @@ async function loadCapSheet(){
 }
 
 const steps = [
-  {type:"choice", id:"tipoVerbale", label:"Tipo di verbale", question:"Verbale di:",
+  {type:"choice", multi:true, id:"tipoVerbale", label:"Tipo di verbale", question:"Verbale di (puoi selezionare più voci):",
     options:["Sopralluogo in cantiere (D.L.)","Sopralluogo in cantiere (C.S.P.-C.S.E.)","Riunione di coordinamento"], allowOther:true},
 
   {type:"text", id:"committente", label:"Committente", question:"Committente e responsabile dei lavori"},
@@ -296,6 +322,12 @@ function render(){
         </div>
       </div>
       <p class="hint" id="indPreview"></p>
+      <button type="button" class="btn btn-ghost" id="btnMapAddr" style="width:100%; margin-top:6px;">Mostra l'indirizzo sulla mappa</button>
+      <div id="mapBox" style="display:none; margin-top:10px;">
+        <canvas id="mapCv" style="width:100%; height:auto; border-radius:10px; border:1px solid var(--border); display:block;"></canvas>
+        <p class="hint">Tocca la mappa per spostare il segnaposto sul punto esatto: l'indirizzo si aggiorna.</p>
+        <label class="hint" style="display:flex; gap:8px; align-items:center;"><input type="checkbox" id="mapInc" checked style="width:auto; margin:0;"> Includi la mappa nel PDF</label>
+      </div>
       <p class="hint">Comuni della provincia di Alessandria: scrivi la città o il CAP e scegli dal suggerimento.</p>`;
   } else if(s.type==="group"){
     inner += s.fields.map(f=>{
@@ -314,6 +346,16 @@ function render(){
       }
       return `<label class="field-label">${f.label}</label><input type="text" id="gf_${f.id}" value="${val}">`;
     }).join("");
+  } else if(s.type==="choice" && s.multi){
+    const sel = answers[s.id+"_sel"] || [];
+    inner += s.options.map((o,k)=>`
+      <div class="choice-opt multi ${sel.includes(o)?'sel':''}" data-k="${k}"><div class="dot"></div><div>${o}</div></div>
+    `).join("");
+    if(s.allowOther){
+      const on = !!answers[s.id+"_altro"];
+      inner += `<div class="choice-opt multi ${on?'sel':''}" data-k="other"><div class="dot"></div><div>Altro</div></div>`;
+      inner += `<input type="text" id="otherField" placeholder="Specifica..." style="display:${on?'block':'none'}" value="${escHtml(answers[s.id+'_altrotxt']||'')}">`;
+    }
   } else if(s.type==="choice"){
     inner += s.options.map(o=>`
       <div class="choice-opt ${answers[s.id]===o?'sel':''}" data-v="${o}"><div class="dot"></div><div>${o}</div></div>
@@ -380,10 +422,39 @@ function render(){
 }
 
 function wireStep(s){
-  document.getElementById("backBtn")?.addEventListener("click", ()=>{ current--; render(); });
+  document.getElementById("backBtn")?.addEventListener("click", ()=>{ try{ saveStep(s); }catch(e){} current--; render(); });
   document.getElementById("nextBtn")?.addEventListener("click", ()=> onNext(s));
 
-  if(s.type==="choice"){
+  if(s.type==="choice" && s.multi){
+    const upd = ()=>{
+      const sel = answers[s.id+"_sel"] || [];
+      const parts = sel.slice();
+      if(answers[s.id+"_altro"] && (answers[s.id+"_altrotxt"]||"").trim()) parts.push(answers[s.id+"_altrotxt"].trim());
+      answers[s.id] = parts.join(" / ");
+    };
+    document.querySelectorAll(".choice-opt.multi").forEach(el=>{
+      el.addEventListener("click", ()=>{
+        const k = el.dataset.k;
+        if(k==="other"){
+          answers[s.id+"_altro"] = !answers[s.id+"_altro"];
+          el.classList.toggle("sel", answers[s.id+"_altro"]);
+          const of = document.getElementById("otherField");
+          of.style.display = answers[s.id+"_altro"] ? "block" : "none";
+          if(answers[s.id+"_altro"]) of.focus();
+        } else {
+          const o = s.options[+k];
+          const sel = answers[s.id+"_sel"] || [];
+          const ix = sel.indexOf(o);
+          if(ix>=0) sel.splice(ix,1); else sel.push(o);
+          answers[s.id+"_sel"] = sel;
+          el.classList.toggle("sel", ix<0);
+        }
+        upd();
+      });
+    });
+    document.getElementById("otherField")?.addEventListener("input", e=>{ answers[s.id+"_altrotxt"] = e.target.value; upd(); });
+  }
+  if(s.type==="choice" && !s.multi){
     document.querySelectorAll(".choice-opt").forEach(el=>{
       el.addEventListener("click", ()=>{
         const v = el.dataset.v;
@@ -446,32 +517,52 @@ function wireStep(s){
 
     const btnGeo = document.getElementById("btnGeo");
     const geoMsg = document.getElementById("geoMsg");
+    const mapBox = document.getElementById("mapBox");
+    const mapCv = document.getElementById("mapCv");
+    const mapInc = document.getElementById("mapInc");
+    mapInc.checked = answers.mapInclude !== false;
+    mapInc.addEventListener("change", ()=>{ answers.mapInclude = mapInc.checked; });
+
+    async function mostraMappa(lat,lon,z){
+      answers.geoLat = lat; answers.geoLon = lon; answers.geoZ = z;
+      mapBox.style.display = "block";
+      const ok = await renderMapCanvas(mapCv,lat,lon,z);
+      if(ok){ try{ answers.mapImg = mapCv.toDataURL("image/jpeg",0.85); }catch(e){ answers.mapImg = null; } }
+      else { answers.mapImg = null; geoMsg.textContent = "Mappa non disponibile (controlla la connessione)."; }
+    }
+    async function riempiDaCoord(lat,lon){
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=it&lat=${lat}&lon=${lon}`;
+      const r = await fetch(url);
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const m = mappaNominatim(await r.json());
+      if(!m.via && !m.citta) throw new Error("nessun indirizzo");
+      document.getElementById("ind_via").value = m.via;
+      document.getElementById("ind_civico").value = m.civico;
+      document.getElementById("ind_cap").value = m.cap;
+      document.getElementById("ind_citta").value = m.citta;
+      document.getElementById("ind_prov").value = m.prov || (comuniByCap(m.cap).length ? "AL" : "");
+      updatePreview();
+      return m;
+    }
+    if(answers.geoLat != null){ mostraMappa(answers.geoLat, answers.geoLon, answers.geoZ||17); }
+
     btnGeo.addEventListener("click", ()=>{
       if(!navigator.geolocation){ geoMsg.textContent = "Posizione non disponibile su questo dispositivo."; return; }
       btnGeo.disabled = true;
       geoMsg.textContent = "Ricerca della posizione in corso...";
       navigator.geolocation.getCurrentPosition(async pos=>{
+        const {latitude:lat, longitude:lon, accuracy:acc} = pos.coords;
         try{
-          const {latitude:lat, longitude:lon, accuracy:acc} = pos.coords;
           if(acc > 1000){
-            geoMsg.textContent = "Posizione troppo imprecisa (circa "+Math.round(acc/1000)+" km): questo dispositivo non ha il GPS. Usa il telefono oppure scrivi l'indirizzo a mano.";
-            btnGeo.disabled = false;
-            return;
+            await mostraMappa(lat,lon,13);
+            geoMsg.textContent = "Posizione troppo imprecisa (circa "+Math.round(acc/1000)+" km): questo dispositivo non ha il GPS. Tocca la mappa sul punto esatto, oppure scrivi l'indirizzo a mano.";
+          } else {
+            await mostraMappa(lat,lon, acc>150 ? 16 : 17);
+            const m = await riempiDaCoord(lat,lon);
+            geoMsg.textContent = "Indirizzo compilato (precisione circa "+Math.round(acc)+" m)." + (acc>150 ? " Posizione approssimata: se serve, tocca la mappa sul punto esatto." : " Controlla e correggi se serve.");
           }
-          const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=it&lat=${lat}&lon=${lon}`;
-          const r = await fetch(url);
-          if(!r.ok) throw new Error("HTTP "+r.status);
-          const m = mappaNominatim(await r.json());
-          if(!m.via && !m.citta) throw new Error("nessun indirizzo");
-          document.getElementById("ind_via").value = m.via;
-          document.getElementById("ind_civico").value = m.civico;
-          document.getElementById("ind_cap").value = m.cap;
-          document.getElementById("ind_citta").value = m.citta;
-          document.getElementById("ind_prov").value = m.prov || (comuniByCap(m.cap).length ? "AL" : "");
-          updatePreview();
-          geoMsg.textContent = "Indirizzo compilato (precisione circa "+Math.round(acc)+" m)." + (acc>150 ? " Posizione approssimata: controlla bene via e civico." : " Controlla e correggi se serve.");
         }catch(e){
-          geoMsg.textContent = "Non sono riuscito a ricavare l'indirizzo. Scrivilo a mano.";
+          geoMsg.textContent = "Non sono riuscito a ricavare l'indirizzo. Tocca la mappa sul punto esatto o scrivilo a mano.";
         }
         btnGeo.disabled = false;
       }, err=>{
@@ -480,6 +571,42 @@ function wireStep(s){
           : "Posizione non rilevata. Riprova all'aperto o scrivi l'indirizzo a mano.";
         btnGeo.disabled = false;
       }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+    });
+
+    // tocco sulla mappa: sposta il segnaposto e aggiorna l'indirizzo
+    mapCv.addEventListener("click", async e=>{
+      const mp = mapCv._map; if(!mp) return;
+      const r = mapCv.getBoundingClientRect();
+      const dx = (e.clientX-r.left)*(mapCv.width/r.width) - mapCv.width/2;
+      const dy = (e.clientY-r.top)*(mapCv.height/r.height) - mapCv.height/2;
+      const [cx,cy] = lonLatToWorld(mp.lat,mp.lon,mp.z);
+      const [lat,lon] = worldToLonLat(cx+dx, cy+dy, mp.z);
+      const z = Math.max(mp.z, 16);
+      geoMsg.textContent = "Aggiorno l'indirizzo...";
+      await mostraMappa(lat,lon,z);
+      try{ await riempiDaCoord(lat,lon); geoMsg.textContent = "Indirizzo aggiornato dal punto toccato. Controlla il civico."; }
+      catch(err){ geoMsg.textContent = "Segnaposto spostato, ma non ho trovato l'indirizzo: completalo a mano."; }
+    });
+
+    // indirizzo scritto a mano -> segnaposto sulla mappa
+    document.getElementById("btnMapAddr").addEventListener("click", async ()=>{
+      const via=document.getElementById("ind_via").value.trim(), civ=document.getElementById("ind_civico").value.trim();
+      const cap=document.getElementById("ind_cap").value.trim(), cit=document.getElementById("ind_citta").value.trim();
+      if(!via && !cit){ geoMsg.textContent = "Scrivi almeno via e città."; return; }
+      geoMsg.textContent = "Cerco l'indirizzo sulla mappa...";
+      const q1 = [[via,civ].filter(Boolean).join(" "), [cap,cit].filter(Boolean).join(" "), "Italia"].filter(Boolean).join(", ");
+      const q2 = [via, [cap,cit].filter(Boolean).join(" "), "Italia"].filter(Boolean).join(", ");
+      async function cerca(q){
+        const r = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=it&q="+encodeURIComponent(q));
+        if(!r.ok) return null; const j = await r.json(); return j[0] || null;
+      }
+      try{
+        let hit = await cerca(q1); let z = 17;
+        if(!hit && civ){ hit = await cerca(q2); }
+        if(!hit){ geoMsg.textContent = "Indirizzo non trovato sulla mappa. Controlla i dati."; return; }
+        await mostraMappa(parseFloat(hit.lat), parseFloat(hit.lon), z);
+        geoMsg.textContent = "Segnaposto sull'indirizzo scritto. Se non è preciso, tocca la mappa sul punto esatto.";
+      }catch(err){ geoMsg.textContent = "Ricerca non riuscita. Riprova."; }
     });
 
     const capInput = document.getElementById("ind_cap");
@@ -620,7 +747,7 @@ function wireStep(s){
   wireMics();
 }
 
-function onNext(s){
+function saveStep(s){
   if(s.type==="text" || s.type==="voice" || s.type==="checktext"){
     answers[s.id] = document.getElementById("field").value.trim();
   }
@@ -639,6 +766,7 @@ function onNext(s){
     });
   }
   if(s.type==="signers"){
+    captureSignerCanvases();
     signers.forEach(sg=>{
       const nEl = document.getElementById("sn_"+sg.id), rEl = document.getElementById("sr_"+sg.id);
       if(nEl) sg.nombre = nEl.value.trim();
@@ -649,6 +777,9 @@ function onNext(s){
       }
     });
   }
+}
+function onNext(s){
+  saveStep(s);
   if(s.type==="review"){ generatePDF(); return; }
   if(current < steps.length-1){ current++; render(); }
 }
@@ -1306,24 +1437,207 @@ function renderRows(s){
   wireMics();
 }
 
+
+function escHtml(t){ return String(t==null?"":t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+// ---------- Firma a schermo intero ----------
+function openSigExpand(id){
+  const sg = signers.find(x=>x.id===id); if(!sg) return;
+  captureSignerCanvases();
+  const ov = document.createElement("div"); ov.className = "sig-ov";
+  ov.innerHTML = `<div class="editor-bar"><button type="button" class="ed-btn" id="sxCancel">Annulla</button><button type="button" class="ed-btn" id="sxClear">Cancella</button><button type="button" class="ed-btn ed-primary" id="sxDone">Fatto</button></div>
+    <div class="sig-hint">Firma qui con il dito. Per avere più spazio, ruota il telefono in orizzontale.</div>
+    <div class="sig-stage"><canvas id="sxCv"></canvas></div>`;
+  document.body.appendChild(ov);
+  const prevOverflow = document.body.style.overflow; document.body.style.overflow = "hidden";
+  const cv = ov.querySelector("#sxCv"); const ctx = cv.getContext("2d");
+  const strokes = []; // punti normalizzati 0..1
+  let cur = null;
+  function fit(){
+    const r = cv.getBoundingClientRect();
+    cv.width = Math.max(50, Math.round(r.width)); cv.height = Math.max(50, Math.round(r.height));
+    redraw();
+  }
+  function redraw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.lineCap="round"; ctx.lineJoin="round"; ctx.strokeStyle="#000"; ctx.lineWidth=4;
+    strokes.forEach(st=>{
+      ctx.beginPath();
+      st.forEach((q,k)=>{ const x=q[0]*cv.width, y=q[1]*cv.height; if(k===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+      if(st.length===1){ ctx.lineTo(st[0][0]*cv.width+0.1, st[0][1]*cv.height+0.1); }
+      ctx.stroke();
+    });
+  }
+  function pt(e){ const r = cv.getBoundingClientRect(); return [(e.clientX-r.left)/r.width, (e.clientY-r.top)/r.height]; }
+  cv.addEventListener("pointerdown", e=>{ cv.setPointerCapture(e.pointerId); cur=[pt(e)]; strokes.push(cur); redraw(); e.preventDefault(); });
+  cv.addEventListener("pointermove", e=>{ if(!cur) return; cur.push(pt(e)); redraw(); e.preventDefault(); });
+  const stop = ()=>{ cur=null; };
+  cv.addEventListener("pointerup", stop); cv.addEventListener("pointercancel", stop);
+  window.addEventListener("resize", fit);
+  setTimeout(fit, 30);
+  function close(){ window.removeEventListener("resize", fit); ov.remove(); document.body.style.overflow = prevOverflow; }
+  ov.querySelector("#sxCancel").addEventListener("click", close);
+  ov.querySelector("#sxClear").addEventListener("click", ()=>{ strokes.length=0; redraw(); });
+  ov.querySelector("#sxDone").addEventListener("click", ()=>{
+    if(!strokes.length){ close(); return; }
+    // area occupata dalla firma, in pixel dello schermo
+    let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+    strokes.forEach(st=>st.forEach(q=>{
+      const x=q[0]*cv.width, y=q[1]*cv.height;
+      minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y);
+    }));
+    const bw=Math.max(maxX-minX,1), bh=Math.max(maxY-minY,1);
+    const out = document.createElement("canvas"); out.width=600; out.height=240;
+    const o = out.getContext("2d");
+    const k = Math.min((600-50)/bw, (240-40)/bh, 2.5);
+    const ox = (600-bw*k)/2 - minX*k, oy = (240-bh*k)/2 - minY*k;
+    o.lineCap="round"; o.lineJoin="round"; o.strokeStyle="#000"; o.lineWidth=5.5;
+    strokes.forEach(st=>{
+      o.beginPath();
+      st.forEach((q,j)=>{ const x=q[0]*cv.width*k+ox, y=q[1]*cv.height*k+oy; if(j===0) o.moveTo(x,y); else o.lineTo(x,y); });
+      if(st.length===1){ o.lineTo(st[0][0]*cv.width*k+ox+0.1, st[0][1]*cv.height*k+oy+0.1); }
+      o.stroke();
+    });
+    if(drawState[id]) drawState[id].hasStroke = false; // evita che la vecchia tela sovrascriva la nuova firma
+    sg.firma = out.toDataURL("image/png");
+    close();
+    renderSigners();
+  });
+}
+
+// ---------- Foto: orientamento corretto + modifica + descrizione ----------
+function loadImg(file){
+  return new Promise((res,rej)=>{
+    const u = URL.createObjectURL(file); const im = new Image();
+    im.onload = ()=>{ res(im); }; im.onerror = ()=>rej(new Error("img")); im.src = u;
+  });
+}
+async function fileToPhoto(file){
+  const im = await loadImg(file);   // il browser applica l'orientamento EXIF
+  const iw = im.naturalWidth, ih = im.naturalHeight;
+  const k = Math.min(1, 1800/Math.max(iw,ih));
+  const w = Math.round(iw*k), h = Math.round(ih*k);
+  const c = document.createElement("canvas"); c.width=w; c.height=h;
+  c.getContext("2d").drawImage(im,0,0,w,h);   // il pixel ruotato viene "cotto" nel JPEG
+  URL.revokeObjectURL(im.src);
+  return {src: c.toDataURL("image/jpeg",0.85), w, h, note:""};
+}
+function openPhotoEditor(i){
+  const ph = photos[i]; if(!ph) return;
+  const COLORS = ["#e11d1d","#f5c400","#111111","#ffffff","#1d4ed8","#16a34a"];
+  const MULT = [1,2,4];
+  let color = COLORS[0], sz = 1; const strokes = []; let cur = null;
+  const ov = document.createElement("div"); ov.className = "editor-ov";
+  ov.innerHTML = `<div class="editor-bar"><button type="button" class="ed-btn" id="edCancel">Annulla</button><button type="button" class="ed-btn" id="edUndo">Indietro</button><button type="button" class="ed-btn ed-primary" id="edSave">Salva</button></div>
+    <div class="editor-stage"><canvas id="edCv"></canvas></div>
+    <div class="editor-tools">
+      <div class="ed-colors">${COLORS.map((c,k)=>`<button type="button" class="ed-color ${k===0?'sel':''}" data-c="${c}" style="background:${c}" title="Colore"></button>`).join("")}</div>
+      <div class="ed-sizes">${["Sottile","Medio","Spesso"].map((t,k)=>`<button type="button" class="ed-size ${k===1?'sel':''}" data-s="${k}">${t}</button>`).join("")}</div>
+    </div>`;
+  document.body.appendChild(ov);
+  const prevOverflow = document.body.style.overflow; document.body.style.overflow = "hidden";
+  const cv = ov.querySelector("#edCv"); const ctx = cv.getContext("2d");
+  const img = new Image();
+  const base = Math.max(ph.w,ph.h)/260;
+  function redraw(){
+    ctx.drawImage(img,0,0,cv.width,cv.height);
+    ctx.lineCap="round"; ctx.lineJoin="round";
+    strokes.forEach(st=>{
+      ctx.strokeStyle=st.color; ctx.lineWidth=base*MULT[st.sz];
+      ctx.beginPath();
+      st.pts.forEach((q,k)=>{ if(k===0) ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]); });
+      if(st.pts.length===1) ctx.lineTo(st.pts[0][0]+0.1, st.pts[0][1]+0.1);
+      ctx.stroke();
+    });
+  }
+  img.onload = ()=>{ cv.width=ph.w; cv.height=ph.h; redraw(); };
+  img.src = ph.src;
+  function pt(e){ const r = cv.getBoundingClientRect(); return [(e.clientX-r.left)*cv.width/r.width, (e.clientY-r.top)*cv.height/r.height]; }
+  cv.addEventListener("pointerdown", e=>{ cv.setPointerCapture(e.pointerId); cur={color,sz,pts:[pt(e)]}; strokes.push(cur); redraw(); e.preventDefault(); });
+  cv.addEventListener("pointermove", e=>{ if(!cur) return; cur.pts.push(pt(e)); redraw(); e.preventDefault(); });
+  const stop = ()=>{ cur=null; };
+  cv.addEventListener("pointerup", stop); cv.addEventListener("pointercancel", stop);
+  ov.querySelectorAll(".ed-color").forEach(b=>b.addEventListener("click", ()=>{
+    color=b.dataset.c; ov.querySelectorAll(".ed-color").forEach(x=>x.classList.toggle("sel",x===b));
+  }));
+  ov.querySelectorAll(".ed-size").forEach(b=>b.addEventListener("click", ()=>{
+    sz=+b.dataset.s; ov.querySelectorAll(".ed-size").forEach(x=>x.classList.toggle("sel",x===b));
+  }));
+  function close(){ ov.remove(); document.body.style.overflow = prevOverflow; }
+  ov.querySelector("#edCancel").addEventListener("click", close);
+  ov.querySelector("#edUndo").addEventListener("click", ()=>{ strokes.pop(); redraw(); });
+  ov.querySelector("#edSave").addEventListener("click", ()=>{
+    if(strokes.length){ ph.src = cv.toDataURL("image/jpeg",0.88); }
+    close(); renderPhotoGrid();
+  });
+}
+
+// ---------- Mappa (tessere OpenStreetMap) ----------
+function lonLatToWorld(lat,lon,z){
+  const n = 256*Math.pow(2,z); const sn = Math.sin(lat*Math.PI/180);
+  return [(lon+180)/360*n, (0.5 - Math.log((1+sn)/(1-sn))/(4*Math.PI))*n];
+}
+function worldToLonLat(x,y,z){
+  const n = 256*Math.pow(2,z);
+  return [Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*180/Math.PI, x/n*360-180];
+}
+async function renderMapCanvas(cv,lat,lon,z){
+  const w = cv.width = 640, h = cv.height = 360;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#e6e6e6"; ctx.fillRect(0,0,w,h);
+  const [cx,cy] = lonLatToWorld(lat,lon,z);
+  const x0 = cx-w/2, y0 = cy-h/2, n = Math.pow(2,z);
+  const jobs = [];
+  for(let ty=Math.floor(y0/256); ty<=Math.floor((y0+h)/256); ty++){
+    for(let tx=Math.floor(x0/256); tx<=Math.floor((x0+w)/256); tx++){
+      if(ty<0 || ty>=n) continue;
+      const wx = ((tx%n)+n)%n;
+      jobs.push(new Promise(res=>{
+        const im = new Image(); im.crossOrigin = "anonymous";
+        im.onload = ()=>{ ctx.drawImage(im, Math.round(tx*256-x0), Math.round(ty*256-y0)); res(true); };
+        im.onerror = ()=>res(false);
+        im.src = `https://tile.openstreetmap.org/${z}/${wx}/${ty}.png`;
+      }));
+    }
+  }
+  const okAll = await Promise.all(jobs);
+  if(!okAll.some(Boolean)) return false;
+  // segnaposto
+  const px = w/2, py = h/2;
+  ctx.beginPath();
+  ctx.moveTo(px,py);
+  ctx.bezierCurveTo(px-20,py-26, px-16,py-52, px,py-52);
+  ctx.bezierCurveTo(px+16,py-52, px+20,py-26, px,py);
+  ctx.fillStyle = "#111"; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = "#fff"; ctx.stroke();
+  ctx.beginPath(); ctx.arc(px,py-36,6,0,Math.PI*2); ctx.fillStyle="#fff"; ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,.8)"; ctx.fillRect(w-190,h-18,190,18);
+  ctx.fillStyle = "#333"; ctx.font = "12px sans-serif"; ctx.textAlign = "right";
+  ctx.fillText("© OpenStreetMap contributors", w-5, h-5);
+  cv._map = {lat,lon,z};
+  return true;
+}
+
 // ---------- Foto ----------
 function renderPhotoGrid(){
   const grid = document.getElementById("photoGrid");
-  grid.innerHTML = photos.map((p,i)=>`<div class="photo-thumb"><img src="${p}"><button data-i="${i}">✕</button></div>`).join("");
-  grid.querySelectorAll(".photo-thumb button").forEach(b=>{
-    b.addEventListener("click", ()=>{ photos.splice(+b.dataset.i,1); renderPhotoGrid(); });
-  });
+  grid.className = "photo-list";
+  grid.innerHTML = photos.map((p,i)=>`<div class="photo-item">
+    <div class="photo-thumb2"><img src="${p.src}"></div>
+    <div class="photo-side">
+      <div class="photo-actions"><span class="hint">Foto ${i+1}</span><button type="button" class="link-btn" data-edit="${i}">Disegna / modifica</button><button type="button" class="link-btn" data-del="${i}">Elimina</button></div>
+      <textarea data-note="${i}" placeholder="Descrizione della foto (facoltativa)">${escHtml(p.note)}</textarea>
+    </div></div>`).join("");
+  grid.querySelectorAll("[data-del]").forEach(b=> b.addEventListener("click", ()=>{ photos.splice(+b.dataset.del,1); renderPhotoGrid(); }));
+  grid.querySelectorAll("[data-edit]").forEach(b=> b.addEventListener("click", ()=> openPhotoEditor(+b.dataset.edit)));
+  grid.querySelectorAll("[data-note]").forEach(t=> t.addEventListener("input", ()=>{ photos[+t.dataset.note].note = t.value; }));
 }
-function handlePhotoInput(e){
+async function handlePhotoInput(e){
   const files = Array.from(e.target.files||[]);
-  let remaining = files.length;
-  if(!remaining) return;
-  files.forEach(f=>{
-    const reader = new FileReader();
-    reader.onload = ()=>{ photos.push(reader.result); remaining--; if(remaining===0) renderPhotoGrid(); };
-    reader.readAsDataURL(f);
-  });
   e.target.value = "";
+  for(const f of files){
+    try{ photos.push(await fileToPhoto(f)); }catch(err){}
+  }
+  renderPhotoGrid();
 }
 
 // ---------- Firmatari dinamici ----------
@@ -1334,6 +1648,9 @@ function addSigner(nombre, rol){
 function captureSignerCanvases(){
   // salva ogni firma già disegnata PRIMA che il prossimo render cancelli i <canvas>
   signers.forEach(sg=>{
+    const nEl = document.getElementById("sn_"+sg.id), rEl = document.getElementById("sr_"+sg.id);
+    if(nEl) sg.nombre = nEl.value;
+    if(rEl) sg.rol = rEl.value;
     const cv = document.getElementById("sc_"+sg.id);
     if(cv && drawState[sg.id] && drawState[sg.id].hasStroke){
       sg.firma = cv.toDataURL("image/png");
@@ -1352,7 +1669,7 @@ function renderSigners(){
       <input type="text" id="sr_${sg.id}" value="${sg.rol||''}">
       <label class="field-label">Firma</label>
       <canvas class="sigpad" id="sc_${sg.id}" width="600" height="240"></canvas>
-      <div class="sig-actions"><button class="link-btn" data-clear="${sg.id}">Cancella firma</button>${sg.firma?'<span class="hint">✓ firma salvata</span>':''}</div>
+      <div class="sig-actions"><button class="link-btn" data-clear="${sg.id}">Cancella firma</button><button class="link-btn" data-expand="${sg.id}">Espandi a schermo intero</button>${sg.firma?'<span class="hint">✓ firma salvata</span>':''}</div>
     </div>
   `).join("");
   box.querySelectorAll(".rm").forEach(b=>{
@@ -1374,6 +1691,9 @@ function renderSigners(){
       };
       img.src = sg.firma;
     }
+  });
+  box.querySelectorAll("[data-expand]").forEach(b=>{
+    b.addEventListener("click", ()=> openSigExpand(+b.dataset.expand));
   });
   box.querySelectorAll("[data-clear]").forEach(b=>{
     b.addEventListener("click", ()=>{
@@ -1466,9 +1786,16 @@ function buildData(){
     note: answers.noteVarie||"",
     foto: photos.length ? "Sì" : "No",
     photos: photos.slice(),
+    mapImg: answers.mapImg||null, mapInclude: answers.mapInclude!==false,
+    geoLat: answers.geoLat!=null?answers.geoLat:null, geoLon: answers.geoLon!=null?answers.geoLon:null,
     firmatari: signers.map(sg=>({n:sg.nombre||"", r:sg.rol||"", sig:sg.firma||null}))
   };
   if(D.imprese.length===0) D.imprese=[{n:"",t:"",a:""}];
+}
+function pdfName(){
+  const n = String(D.numero||"").trim() || "__";
+  const d = String(D.data||"").trim() || "data";
+  return `Verbale di Cantiere Nº ${n} del ${d}.pdf`.replace(/[\\/:*?"<>|]/g,"-");
 }
 function fmtDate(d){
   if(!d) return "";
@@ -1512,9 +1839,11 @@ function styleB(){
   doc.setTextColor(20); doc.setFont("helvetica","bold"); doc.setFontSize(17);
   doc.text("VERBALE DI CANTIERE",M+32,21);
   doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(85);
-  doc.text(D.tipo||"—",M+32,27.5);
+  const tipoLines = doc.splitTextToSize(D.tipo||"—", 95).slice(0,3);
+  doc.setFontSize(tipoLines.length>1?8:9);
+  doc.text(tipoLines,M+32,26.5);
   doc.setFontSize(7.6); doc.setTextColor(140);
-  doc.text("DIAMETRO ZERO — STUDIO TECNICO  ·  "+CONTACT,M+32,34);
+  doc.text("DIAMETRO ZERO — STUDIO TECNICO  ·  "+CONTACT,M+32,Math.max(34, 26.5+tipoLines.length*3.8+1.5));
   doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(20);
   doc.text("N° "+(D.numero||"—"),PW-M,21,{align:"right"});
   doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(95);
@@ -1638,27 +1967,54 @@ function styleB(){
   doc.setFont("helvetica","normal"); doc.setFontSize(8.4); doc.setTextColor(110);
   doc.text("Il sopralluogo si è concluso il "+D.dataFine+" alle ore "+D.oraFine+".",M,y);
 
-  photoPages(doc); footer(doc); return doc;
+  mapPage(doc); photoPages(doc); footer(doc); return doc;
+}
+
+function mapPage(doc){
+  if(!D.mapImg || D.mapInclude===false) return;
+  doc.addPage();
+  const M=16, W=PW-M*2; let y=M;
+  doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(20);
+  doc.text("UBICAZIONE DEL CANTIERE",M,y+4);
+  doc.setDrawColor(25); doc.setLineWidth(0.6); doc.line(M,y+7,PW-M,y+7); doc.setLineWidth(0.2);
+  y+=14;
+  doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40);
+  const lines = doc.splitTextToSize(D.indirizzo||"—", W);
+  doc.text(lines,M,y); y+=lines.length*5+3;
+  const h = W*360/640;
+  try{ doc.addImage(D.mapImg,"JPEG",M,y,W,h); }catch(e){}
+  doc.setDrawColor(190); doc.rect(M,y,W,h);
+  y+=h+5;
+  doc.setFontSize(7.5); doc.setTextColor(120);
+  if(D.geoLat!=null) doc.text("Coordinate: "+Number(D.geoLat).toFixed(5)+", "+Number(D.geoLon).toFixed(5)+"  ·  Mappa © OpenStreetMap contributors",M,y);
 }
 
 function photoPages(doc){
   if(!D.photos || !D.photos.length) return;
-  doc.addPage();
-  const M=16, W=PW-M*2; let y=M;
-  doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(20);
-  doc.text("DOCUMENTAZIONE FOTOGRAFICA",M,y+4);
-  doc.setDrawColor(25); doc.setLineWidth(0.6); doc.line(M,y+7,PW-M,y+7); doc.setLineWidth(0.2);
-  y+=14;
-  const w=(W-6)/2, h=w*0.72;
-  let x=M, col=0;
+  const M=16, W=PW-M*2, n=D.photos.length;
   D.photos.forEach((p,i)=>{
-    if(y+h+8>PH-18){ doc.addPage(); y=M; x=M; col=0; }
-    try{ doc.addImage(p,"JPEG",x,y,w,h); }catch(e){}
+    doc.addPage();
+    let y=M;
+    doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(20);
+    doc.text("DOCUMENTAZIONE FOTOGRAFICA",M,y+4);
+    doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(110);
+    doc.text("Foto "+(i+1)+" di "+n,PW-M,y+4,{align:"right"});
+    doc.setDrawColor(25); doc.setLineWidth(0.6); doc.line(M,y+7,PW-M,y+7); doc.setLineWidth(0.2);
+    y+=12;
+    const note = (p.note||"").trim();
+    doc.setFont("helvetica","normal"); doc.setFontSize(10);
+    const nl = note ? doc.splitTextToSize(note, W).slice(0,8) : [];
+    const noteH = nl.length ? nl.length*4.6+6 : 0;
+    const availH = PH-18-y-noteH;
+    const pw = p.w||4, ph = p.h||3;
+    const k = Math.min(W/pw, availH/ph);
+    const w = pw*k, h = ph*k, x = M+(W-w)/2;
+    try{ doc.addImage(p.src,"JPEG",x,y,w,h); }catch(e){}
     doc.setDrawColor(215); doc.rect(x,y,w,h);
-    doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(120);
-    doc.text("Foto "+(i+1),x,y+h+4);
-    col++;
-    if(col%2===0){ x=M; y+=h+9; } else { x=M+w+6; }
+    if(nl.length){
+      doc.setTextColor(40); doc.setFontSize(10);
+      doc.text(nl, M, y+h+6);
+    }
   });
 }
 
@@ -1693,7 +2049,7 @@ async function saveVerbaleToOdoo(pdfBlob, pdfFilename){
     note: answers.noteVarie,
     imprese: imprese.filter(r=>r.nome||r.titolare).map(r=>({nome:r.nome||"", titolare:r.titolare||"", addetti:r.addetti||""})),
     firmatari: signers.map(sg=>({nome:sg.nombre||"", ruolo:sg.rol||"", firmaBase64: dataUrlToBase64(sg.firma)})),
-    foto: photos.map(p=> dataUrlToBase64(p)),
+    foto: photos.map(p=> dataUrlToBase64(p.src)),
     pdfBase64: pdfBase64,
     pdfFilename: pdfFilename
   };
@@ -1744,7 +2100,7 @@ async function deliver(){
   buildData();
   const doc = styleB();
   const blob = doc.output("blob");
-  const filename = `verbale-${(D.numero||"senza-numero").replace(/[^\w-]+/g,"_")}.pdf`;
+  const filename = pdfName();
   const dl = window.claude ? await window.claude.use("downloads") : null;
   if(dl){ try{ await dl.save({filename, data: blob}); return {saved:true, blob, filename}; }catch(e){} }
   return {saved:false, blob, filename};
@@ -1772,7 +2128,7 @@ function generatePDF(){
   if(usaOdoo){
     const doc = styleB();
     const blob = doc.output("blob");
-    const filename = `verbale-${(D.numero||"senza-numero").replace(/[^\w-]+/g,"_")}.pdf`;
+    const filename = pdfName();
     saveVerbaleToOdoo(blob, filename).then(res=>{
       document.getElementById("finalSub").textContent = "Salvato in Odoo (record #"+res.id+"). Puoi anche scaricarlo o inviarlo via email.";
       loadAnagraficaOdoo(); // aggiorna la cache dei suggerimenti con questo nuovo verbale
@@ -1810,7 +2166,7 @@ function generatePDF(){
     buildData();
     const doc = styleB();
     const blob = doc.output("blob");
-    const filename = `verbale-${(D.numero||"senza-numero").replace(/[^\w-]+/g,"_")}.pdf`;
+    const filename = pdfName();
     const file = new File([blob], filename, {type:"application/pdf"});
     let shared = false;
     if(navigator.canShare && navigator.canShare({files:[file]})){
