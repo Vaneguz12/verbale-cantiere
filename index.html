@@ -248,8 +248,8 @@ const steps = [
   ]},
 
   {type:"group", id:"redattore", label:"Chi redige", question:"Chi effettua il sopralluogo", fields:[
-    {id:"direzioneLavori", label:"Direzione Lavori", type:"text", suggest:"direttori", def: ()=> (allDirettori()[0]||"")},
-    {id:"coordinatoreSicurezza", label:"Coordinatore della Sicurezza C.S.P.-C.S.E.", type:"text", suggest:"coordinatori", def: ()=> (allCoordinatori()[0]||"")},
+    {id:"direzioneLavori", label:"Direzione Lavori", type:"text", suggest:"direttori", def: ()=> DL_DEFAULT},
+    {id:"coordinatoreSicurezza", label:"Coordinatore della Sicurezza C.S.P.-C.S.E.", type:"text", suggest:"coordinatori", def: ()=> DL_DEFAULT},
     {id:"professionisti", label:"Altri professionisti intervenuti nel verbale", type:"text", titoloPicker:true}
   ]},
 
@@ -865,30 +865,41 @@ function rememberAnagrafica(){
   if(!a.professionisti) a.professionisti = [];
   let clienteNuovo = false, impreseNuove = [], direttoreNuovo = false, coordinatoreNuovo = false, professionistiNuovi = [];
 
+  let clientePush = false;
   if(answers.committente){
     const key = answers.committente.toLowerCase();
-    const giaNoto = a.clienti.some(c=>c.cliente.toLowerCase()===key) || sheetAnagrafica.clienti.some(c=>c.cliente.toLowerCase()===key);
-    clienteNuovo = !giaNoto;
+    const noto = a.clienti.find(c=>c.cliente.toLowerCase()===key) || sheetAnagrafica.clienti.find(c=>c.cliente.toLowerCase()===key);
+    const ind = answers.indirizzo||"";
+    // nuovo cliente, oppure indirizzo nuovo/diverso -> il foglio lo crea o lo aggiorna
+    clientePush = !noto || (ind && (noto.indirizzo||"").trim().toLowerCase() !== ind.trim().toLowerCase());
+    clienteNuovo = clientePush;
     const idx = a.clienti.findIndex(c=>c.cliente.toLowerCase()===key);
-    const entry = {cliente:answers.committente, indirizzo:answers.indirizzo||""};
+    const entry = {cliente:answers.committente, indirizzo: ind || (noto&&noto.indirizzo) || ""};
     if(idx>=0) a.clienti[idx]=entry; else a.clienti.unshift(entry);
     a.clienti = a.clienti.slice(0,50);
   }
 
-  // un'impresa conta come "novità da salvare" se non avevamo ancora questa esatta
-  // combinazione nome+titolare — così un nuovo preposto/responsabile per un'azienda
-  // già nota viene comunque registrato, non solo aziende mai viste prima.
+  // Imprese: si conservano TUTTI i titolari/preposti per impresa. Un titolare nuovo per
+  // un'impresa nota crea una nuova coppia (il vecchio non si cancella); con titolare vuoto
+  // e impresa gia' nota non si manda nulla.
   imprese.forEach(r=>{
     if(!r.nome) return;
-    const key = r.nome.toLowerCase()+"|"+(r.titolare||"").toLowerCase();
-    const giaNota = a.imprese.some(x=>(x.impresa.toLowerCase()+"|"+(x.titolare||"").toLowerCase())===key)
-      || sheetAnagrafica.imprese.some(x=>(x.impresa.toLowerCase()+"|"+(x.titolare||"").toLowerCase())===key);
-    if(!giaNota) impreseNuove.push({impresa:r.nome, titolare:r.titolare||""});
-    const idxN = a.imprese.findIndex(x=>x.impresa.toLowerCase()===r.nome.toLowerCase());
-    const entry = {impresa:r.nome, titolare:r.titolare||""};
-    if(idxN>=0) a.imprese[idxN]=entry; else a.imprese.unshift(entry);
+    const nome = r.nome.trim(), tit = (r.titolare||"").trim();
+    const coppie = coppieImprese();
+    const stessa = coppie.filter(x=>x.impresa.toLowerCase()===nome.toLowerCase());
+    const giaNota = tit
+      ? stessa.some(x=>(x.titolare||"").toLowerCase()===tit.toLowerCase())
+      : stessa.length>0;
+    if(!giaNota) impreseNuove.push({impresa:nome, titolare:tit});
+    // memoria locale: coppie uniche, piu' recente in testa
+    a.imprese = (a.imprese||[]).filter(x=>!(x.impresa.toLowerCase()===nome.toLowerCase() && (x.titolare||"").toLowerCase()===tit.toLowerCase()));
+    if(tit) a.imprese = a.imprese.filter(x=>!(x.impresa.toLowerCase()===nome.toLowerCase() && !x.titolare));
+    if(tit || !stessa.length) a.imprese.unshift({impresa:nome, titolare:tit});
+    else {
+      const ultimo = stessa[0]; a.imprese.unshift({impresa:nome, titolare:ultimo.titolare||""});
+    }
   });
-  a.imprese = a.imprese.slice(0,80);
+  a.imprese = a.imprese.slice(0,300);
 
   if(answers.direzioneLavori){
     const key = answers.direzioneLavori.toLowerCase();
@@ -920,7 +931,7 @@ function rememberAnagrafica(){
   bumpContatore();
 
   // scrittura opzionale sul Google Sheet (solo cio' che e' effettivamente nuovo)
-  if(clienteNuovo && answers.committente){
+  if(clientePush && answers.committente){
     pushToSheet("cliente", {cliente:answers.committente, indirizzo:answers.indirizzo||""});
   }
   impreseNuove.forEach(r=> pushToSheet("impresa", {impresa:r.impresa, titolare:r.titolare}));
@@ -995,6 +1006,7 @@ async function loadAnagraficaSheet(){
   }
 }
 
+const DL_DEFAULT = "Geom. Michele Pavese";
 function allClienti(){
   const local = localAnagrafica().clienti;
   const merged = [...sheetAnagrafica.clienti, ...local];
@@ -1002,21 +1014,41 @@ function allClienti(){
   merged.forEach(c=>{ const k=c.cliente.toLowerCase(); if(!seen.has(k)){ seen.add(k); out.push(c); } });
   return out;
 }
-function allImprese(){
-  const local = localAnagrafica().imprese;
-  const merged = [...sheetAnagrafica.imprese, ...local];
+// tutte le coppie impresa+titolare note (prima le usate di recente in locale, poi quelle del foglio)
+function coppieImprese(){
+  const merged = [...(localAnagrafica().imprese||[]), ...sheetAnagrafica.imprese];
   const seen = new Set(); const out = [];
-  merged.forEach(c=>{ const k=c.impresa.toLowerCase(); if(!seen.has(k)){ seen.add(k); out.push(c); } });
+  merged.forEach(c=>{
+    if(!c.impresa) return;
+    const k = c.impresa.toLowerCase()+"|"+(c.titolare||"").toLowerCase();
+    if(!seen.has(k)){ seen.add(k); out.push(c); }
+  });
   return out;
+}
+// elenco di imprese senza doppioni; il titolare proposto e' l'ultimo usato
+function allImprese(){
+  const seen = new Set(); const out = [];
+  coppieImprese().forEach(c=>{
+    const k = c.impresa.toLowerCase();
+    const prima = out.find(x=>x.impresa.toLowerCase()===k);
+    if(prima){ if(!prima.titolare && c.titolare) prima.titolare = c.titolare; return; }
+    out.push({impresa:c.impresa, titolare:c.titolare||""});
+  });
+  return out;
+}
+function titolariDi(nome){
+  const k = String(nome||"").trim().toLowerCase();
+  if(!k) return [];
+  return [...new Set(coppieImprese().filter(c=>c.impresa.toLowerCase()===k && c.titolare).map(c=>c.titolare))];
 }
 function allDirettori(){
   const local = localAnagrafica().direttori || [];
-  const merged = [...local, ...(sheetAnagrafica.direttori||[])];
+  const merged = [DL_DEFAULT, ...local, ...(sheetAnagrafica.direttori||[])];
   return [...new Set(merged)];
 }
 function allCoordinatori(){
   const local = localAnagrafica().coordinatori || [];
-  const merged = [...local, ...(sheetAnagrafica.coordinatori||[])];
+  const merged = [DL_DEFAULT, ...local, ...(sheetAnagrafica.coordinatori||[])];
   return [...new Set(merged)];
 }
 
@@ -1173,12 +1205,12 @@ function parseProfessionisti(text){
   });
 }
 
-function wireSuggest(inputEl, boxEl, listOrFn, labelFn, onPick, multi){
+function wireSuggest(inputEl, boxEl, listOrFn, labelFn, onPick, multi, showAll){
   function refresh(){
     const list = typeof listOrFn === "function" ? listOrFn() : listOrFn;
     const raw = multi ? inputEl.value.split(",").pop() : inputEl.value;
     const q = raw.trim().toLowerCase();
-    if(!q){ boxEl.classList.remove("show"); boxEl.innerHTML=""; return; }
+    if(!q && !showAll){ boxEl.classList.remove("show"); boxEl.innerHTML=""; return; }
     const matches = list.filter(item=> labelFn(item).toLowerCase().includes(q)).slice(0,6);
     if(!matches.length){ boxEl.classList.remove("show"); boxEl.innerHTML=""; return; }
     boxEl.innerHTML = matches.map((item,i)=>`<div class="opt" data-i="${i}">${labelFn(item)}</div>`).join("");
@@ -1430,6 +1462,13 @@ function renderRows(s){
               <div class="sugg-box" id="impSuggest_${i}"></div>
             </div>`;
         }
+        if(c.id==="titolare"){
+          return `<label class="field-label">${c.label}</label>
+            <div class="sugg-wrap">
+              <input type="text" autocomplete="off" data-row="${i}" data-col="${c.id}" id="imp_${i}_${c.id}" value="${row[c.id]||''}">
+              <div class="sugg-box" id="titSuggest_${i}"></div>
+            </div>`;
+        }
         return `<label class="field-label">${c.label}</label>
           <div class="field-mic-row">
             <input type="text" data-row="${i}" data-col="${c.id}" id="imp_${i}_${c.id}" value="${row[c.id]||''}">
@@ -1447,13 +1486,19 @@ function renderRows(s){
     b.addEventListener("click", ()=>{ imprese.splice(+b.dataset.i,1); renderRows(s); });
   });
   imprese.forEach((row,i)=>{
+    const tIn = document.getElementById(`imp_${i}_titolare`), tBox = document.getElementById(`titSuggest_${i}`);
+    if(tIn && tBox){
+      wireSuggest(tIn, tBox, ()=>titolariDi(imprese[i].nome).map(t=>({t})), x=>x.t, (picked)=>{
+        tIn.value = picked.t; imprese[i].titolare = picked.t;
+      }, false, true);
+    }
     const input = document.getElementById(`imp_${i}_nome`);
     const sbox = document.getElementById(`impSuggest_${i}`);
     if(!input || !sbox) return;
     wireSuggest(input, sbox, allImprese(), c=>c.impresa, (picked)=>{
       input.value = picked.impresa;
       imprese[i].nome = picked.impresa;
-      if(picked.titolare){
+      if(picked.titolare && !imprese[i].titolare){
         imprese[i].titolare = picked.titolare;
         const tEl = document.getElementById(`imp_${i}_titolare`);
         if(tEl) tEl.value = picked.titolare;
