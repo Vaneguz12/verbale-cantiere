@@ -168,6 +168,30 @@ const ICON_MAIL = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" s
 const ICON_PIN = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>`;
 
 // Converte la risposta di Nominatim nei campi dell'indirizzo
+
+// Civico più vicino al punto (OpenStreetMap / Overpass, gratuito). Può non esistere in OSM.
+async function cercaCivicoVicino(lat,lon,via){
+  const q = `[out:json][timeout:8];nwr(around:40,${lat},${lon})["addr:housenumber"];out center tags 40;`;
+  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 9000);
+  try{
+    const r = await fetch("https://overpass-api.de/api/interpreter", {method:"POST", body:"data="+encodeURIComponent(q), headers:{"Content-Type":"application/x-www-form-urlencoded"}, signal:ctl.signal});
+    if(!r.ok) return "";
+    const j = await r.json();
+    const norm = x=>String(x||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    const v = norm(via);
+    let best = null, bd = 1e9;
+    (j.elements||[]).forEach(el=>{
+      const la = el.lat!=null ? el.lat : (el.center&&el.center.lat), lo = el.lon!=null ? el.lon : (el.center&&el.center.lon);
+      if(la==null) return;
+      const st = norm(el.tags["addr:street"]);
+      if(v && st && !(st.includes(v) || v.includes(st))) return;
+      const d = Math.hypot((la-lat)*111000, (lo-lon)*111000*Math.cos(lat*Math.PI/180));
+      if(d<bd){ bd=d; best=el.tags["addr:housenumber"]; }
+    });
+    return best || "";
+  }catch(e){ return ""; }
+  finally{ clearTimeout(t); }
+}
 function mappaNominatim(data){
   const a = (data && data.address) || {};
   const via = a.road || a.pedestrian || a.footway || a.path || a.residential || "";
@@ -237,10 +261,6 @@ const steps = [
 
   {type:"voice", id:"lavorazioni", label:"Lavorazioni", question:"Descrizione delle lavorazioni in corso"},
 
-  {type:"yesno", id:"docPresente", label:"Verifica", question:"Presenza della documentazione richiesta in cantiere?"},
-  {type:"yesno", id:"orgRispettata", label:"Verifica", question:"Rispetto dell'organizzazione del cantiere come indicato?"},
-  {type:"yesno", id:"dpiRispettato", label:"Verifica", question:"Rispetto delle modalità operative ed uso dei DPI?"},
-
   {type:"voice", id:"segnalazioni", label:"Segnalazioni", question:"Eventuali segnalazioni o richieste di azioni correttive"},
 
   {type:"checktext", id:"sospensione", label:"Sicurezza", checkboxLabel:"Sospensione dei lavori per pericolo grave ed imminente",
@@ -252,6 +272,11 @@ const steps = [
   {type:"voice", id:"noteVarie", label:"Note", question:"Note, varie ed eventuali"},
 
   {type:"photos", id:"fotos", label:"Evidenza", question:"Foto effettuate durante il sopralluogo"},
+
+  {type:"yesno", id:"docPresente", label:"Verifica", question:"Presenza della documentazione richiesta in cantiere?"},
+  {type:"yesno", id:"orgRispettata", label:"Verifica", question:"Rispetto dell'organizzazione del cantiere come indicato?"},
+  {type:"yesno", id:"dpiRispettato", label:"Verifica", question:"Rispetto delle modalità operative ed uso dei DPI?"},
+
 
   {type:"group", id:"chiusura", label:"Chiusura", question:"Chiusura del sopralluogo", fields:[
     {id:"dataFine", label:"Data", type:"date", def: todayStr},
@@ -323,10 +348,13 @@ function render(){
       </div>
       <p class="hint" id="indPreview"></p>
       <button type="button" class="btn btn-ghost" id="btnMapAddr" style="width:100%; margin-top:6px;">Mostra l'indirizzo sulla mappa</button>
-      <div id="mapBox" style="display:none; margin-top:10px;">
-        <canvas id="mapCv" style="width:100%; height:auto; border-radius:10px; border:1px solid var(--border); display:block;"></canvas>
-        <p class="hint">Tocca la mappa per spostare il segnaposto sul punto esatto: l'indirizzo si aggiorna.</p>
-        <label class="hint" style="display:flex; gap:8px; align-items:center;"><input type="checkbox" id="mapInc" checked style="width:auto; margin:0;"> Includi la mappa nel PDF</label>
+      <div id="mapBox" style="display:none; margin-top:10px; gap:12px; align-items:center; border:1px solid var(--border); border-radius:12px; padding:8px;">
+        <canvas id="mapCv" style="width:44%; height:auto; border-radius:8px; border:1px solid var(--border); display:block; cursor:pointer; flex-shrink:0;"></canvas>
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:13px; font-weight:700;">Ubicazione sulla mappa</div>
+          <p class="hint" style="margin:2px 0 8px;">Tocca la mappa per correggere il punto.</p>
+          <label class="hint" style="display:flex; gap:8px; align-items:center; margin:0;"><input type="checkbox" id="mapInc" checked style="width:auto; margin:0;"> Includi nel PDF</label>
+        </div>
       </div>
       <p class="hint">Comuni della provincia di Alessandria: scrivi la città o il CAP e scegli dal suggerimento.</p>`;
   } else if(s.type==="group"){
@@ -525,7 +553,7 @@ function wireStep(s){
 
     async function mostraMappa(lat,lon,z){
       answers.geoLat = lat; answers.geoLon = lon; answers.geoZ = z;
-      mapBox.style.display = "block";
+      mapBox.style.display = "flex";
       const ok = await renderMapCanvas(mapCv,lat,lon,z);
       if(ok){ try{ answers.mapImg = mapCv.toDataURL("image/jpeg",0.85); }catch(e){ answers.mapImg = null; } }
       else { answers.mapImg = null; geoMsg.textContent = "Mappa non disponibile (controlla la connessione)."; }
@@ -537,7 +565,9 @@ function wireStep(s){
       const m = mappaNominatim(await r.json());
       if(!m.via && !m.citta) throw new Error("nessun indirizzo");
       document.getElementById("ind_via").value = m.via;
-      document.getElementById("ind_civico").value = m.civico;
+      let civ = m.civico || await cercaCivicoVicino(lat,lon,m.via);
+      document.getElementById("ind_civico").value = civ || "";
+      m.civicoTrovato = !!civ;
       document.getElementById("ind_cap").value = m.cap;
       document.getElementById("ind_citta").value = m.citta;
       document.getElementById("ind_prov").value = m.prov || (comuniByCap(m.cap).length ? "AL" : "");
@@ -555,14 +585,14 @@ function wireStep(s){
         try{
           if(acc > 1000){
             await mostraMappa(lat,lon,13);
-            geoMsg.textContent = "Posizione troppo imprecisa (circa "+Math.round(acc/1000)+" km): questo dispositivo non ha il GPS. Tocca la mappa sul punto esatto, oppure scrivi l'indirizzo a mano.";
+            geoMsg.textContent = "Posizione troppo imprecisa (circa "+Math.round(acc/1000)+" km): questo dispositivo non ha il GPS. Tocca la miniatura della mappa per scegliere il punto, oppure scrivi l'indirizzo a mano.";
           } else {
             await mostraMappa(lat,lon, acc>150 ? 16 : 17);
             const m = await riempiDaCoord(lat,lon);
-            geoMsg.textContent = "Indirizzo compilato (precisione circa "+Math.round(acc)+" m)." + (acc>150 ? " Posizione approssimata: se serve, tocca la mappa sul punto esatto." : " Controlla e correggi se serve.");
+            geoMsg.textContent = "Indirizzo compilato (precisione circa "+Math.round(acc)+" m). " + (m.civicoTrovato ? "Civico preso dal punto più vicino su OpenStreetMap: verificalo." : "OpenStreetMap non ha il civico in questo punto: scrivilo tu.") + (acc>150 ? " Posizione approssimata: tocca la mappa per il punto esatto." : "");
           }
         }catch(e){
-          geoMsg.textContent = "Non sono riuscito a ricavare l'indirizzo. Tocca la mappa sul punto esatto o scrivilo a mano.";
+          geoMsg.textContent = "Non sono riuscito a ricavare l'indirizzo. Tocca la mappa per scegliere il punto o scrivilo a mano.";
         }
         btnGeo.disabled = false;
       }, err=>{
@@ -573,19 +603,15 @@ function wireStep(s){
       }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
     });
 
-    // tocco sulla mappa: sposta il segnaposto e aggiorna l'indirizzo
-    mapCv.addEventListener("click", async e=>{
+    // tocco sulla miniatura: apre la mappa grande per scegliere il punto
+    mapCv.addEventListener("click", ()=>{
       const mp = mapCv._map; if(!mp) return;
-      const r = mapCv.getBoundingClientRect();
-      const dx = (e.clientX-r.left)*(mapCv.width/r.width) - mapCv.width/2;
-      const dy = (e.clientY-r.top)*(mapCv.height/r.height) - mapCv.height/2;
-      const [cx,cy] = lonLatToWorld(mp.lat,mp.lon,mp.z);
-      const [lat,lon] = worldToLonLat(cx+dx, cy+dy, mp.z);
-      const z = Math.max(mp.z, 16);
-      geoMsg.textContent = "Aggiorno l'indirizzo...";
-      await mostraMappa(lat,lon,z);
-      try{ await riempiDaCoord(lat,lon); geoMsg.textContent = "Indirizzo aggiornato dal punto toccato. Controlla il civico."; }
-      catch(err){ geoMsg.textContent = "Segnaposto spostato, ma non ho trovato l'indirizzo: completalo a mano."; }
+      openMapPicker(mp.lat, mp.lon, mp.z, async (lat,lon,z)=>{
+        geoMsg.textContent = "Aggiorno l'indirizzo...";
+        await mostraMappa(lat,lon,z);
+        try{ const mm = await riempiDaCoord(lat,lon); geoMsg.textContent = "Indirizzo aggiornato dal punto scelto. " + (mm.civicoTrovato ? "Civico preso dal punto più vicino su OpenStreetMap: verificalo." : "OpenStreetMap non ha il civico in questo punto: scrivilo tu."); }
+        catch(err){ geoMsg.textContent = "Segnaposto spostato, ma non ho trovato l'indirizzo: completalo a mano."; }
+      });
     });
 
     // indirizzo scritto a mano -> segnaposto sulla mappa
@@ -605,7 +631,7 @@ function wireStep(s){
         if(!hit && civ){ hit = await cerca(q2); }
         if(!hit){ geoMsg.textContent = "Indirizzo non trovato sulla mappa. Controlla i dati."; return; }
         await mostraMappa(parseFloat(hit.lat), parseFloat(hit.lon), z);
-        geoMsg.textContent = "Segnaposto sull'indirizzo scritto. Se non è preciso, tocca la mappa sul punto esatto.";
+        geoMsg.textContent = "Segnaposto sull'indirizzo scritto. Se non è preciso, tocca la mappa per correggerlo.";
       }catch(err){ geoMsg.textContent = "Ricerca non riuscita. Riprova."; }
     });
 
@@ -1573,6 +1599,37 @@ function openPhotoEditor(i){
 }
 
 // ---------- Mappa (tessere OpenStreetMap) ----------
+function openMapPicker(lat,lon,z,onDone){
+  let cz = Math.max(12,Math.min(19,z||16)), cl = [lat,lon];
+  const ov = document.createElement("div"); ov.className = "editor-ov";
+  ov.innerHTML = `<div class="editor-bar"><button type="button" class="ed-btn" id="mpCancel">Annulla</button><button type="button" class="ed-btn ed-primary" id="mpOk">Conferma posizione</button></div>
+    <div class="sig-hint" style="color:#cbd0d6;">Tocca il punto esatto del cantiere sulla mappa.</div>
+    <div class="editor-stage" id="mpStage" style="padding:0 8px;"><canvas id="mpCv" style="width:100%; height:100%; max-height:none; touch-action:manipulation;"></canvas></div>
+    <div class="editor-tools"><div class="ed-sizes"><button type="button" class="ed-size" id="mpMinus">Zoom −</button><button type="button" class="ed-size" id="mpPlus">Zoom +</button></div></div>`;
+  document.body.appendChild(ov);
+  const prevOverflow = document.body.style.overflow; document.body.style.overflow = "hidden";
+  const cv = ov.querySelector("#mpCv"), stage = ov.querySelector("#mpStage");
+  async function draw(){
+    const r = stage.getBoundingClientRect();
+    await renderMapCanvas(cv, cl[0], cl[1], cz, Math.max(200,Math.round(r.width-16)), Math.max(200,Math.round(r.height)));
+  }
+  setTimeout(draw, 30);
+  cv.addEventListener("click", e=>{
+    const mp = cv._map; if(!mp) return;
+    const r = cv.getBoundingClientRect();
+    const dx = (e.clientX-r.left)*(cv.width/r.width) - cv.width/2;
+    const dy = (e.clientY-r.top)*(cv.height/r.height) - cv.height/2;
+    const [cx,cy] = lonLatToWorld(mp.lat,mp.lon,mp.z);
+    cl = worldToLonLat(cx+dx, cy+dy+26, mp.z);   // +26: la punta del segnaposto è sul punto toccato
+    draw();
+  });
+  ov.querySelector("#mpMinus").addEventListener("click", ()=>{ cz=Math.max(12,cz-1); draw(); });
+  ov.querySelector("#mpPlus").addEventListener("click", ()=>{ cz=Math.min(19,cz+1); draw(); });
+  function close(){ ov.remove(); document.body.style.overflow = prevOverflow; }
+  ov.querySelector("#mpCancel").addEventListener("click", close);
+  ov.querySelector("#mpOk").addEventListener("click", ()=>{ close(); onDone(cl[0],cl[1],cz); });
+}
+
 function lonLatToWorld(lat,lon,z){
   const n = 256*Math.pow(2,z); const sn = Math.sin(lat*Math.PI/180);
   return [(lon+180)/360*n, (0.5 - Math.log((1+sn)/(1-sn))/(4*Math.PI))*n];
@@ -1581,8 +1638,8 @@ function worldToLonLat(x,y,z){
   const n = 256*Math.pow(2,z);
   return [Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*180/Math.PI, x/n*360-180];
 }
-async function renderMapCanvas(cv,lat,lon,z){
-  const w = cv.width = 640, h = cv.height = 360;
+async function renderMapCanvas(cv,lat,lon,z,W0,H0){
+  const w = cv.width = W0||640, h = cv.height = H0||360;
   const ctx = cv.getContext("2d");
   ctx.fillStyle = "#e6e6e6"; ctx.fillRect(0,0,w,h);
   const [cx,cy] = lonLatToWorld(lat,lon,z);
@@ -1752,14 +1809,14 @@ function renderReview(){
     ["Indirizzo cantiere", answers.indirizzo],
     ["Presenti", impreseTxt],
     ["Lavorazioni in corso", answers.lavorazioni],
-    ["Documentazione presente", answers.docPresente],
-    ["Organizzazione rispettata", answers.orgRispettata],
-    ["DPI rispettati", answers.dpiRispettato],
     ["Segnalazioni", answers.segnalazioni],
     ["Sospensione lavori", answers.sospensione_on ? (answers.sospensione||"Sì") : "No"],
     ["Ripresa lavori", answers.ripresa_on ? (answers.ripresa||"Sì") : "No"],
     ["Note varie", answers.noteVarie],
     ["Foto", photos.length+" foto"],
+    ["Documentazione presente", answers.docPresente],
+    ["Organizzazione rispettata", answers.orgRispettata],
+    ["DPI rispettati", answers.dpiRispettato],
     ["Firmatari", firmatariTxt],
   ];
   box.innerHTML = rows.map(([q,a])=>`<div class="review-item"><div class="review-q">${q}</div><div class="review-a">${a||'—'}</div></div>`).join("");
@@ -1866,8 +1923,9 @@ function styleB(){
     doc.text(lines,x,y+4.6);
     return 4.6+lines.length*4.6+4;
   }
+  let colW0 = W;
   function twoCol(l1,v1,l2,v2){
-    const half=(W-8)/2;
+    const half=(colW0-8)/2;
     const a=pair(l1,v1,M,half), b=pair(l2,v2,M+half+8,half);
     y+=Math.max(a,b);
   }
@@ -1879,8 +1937,19 @@ function styleB(){
   }
 
   h2("Anagrafica");
+  const hasMap = !!(D.mapImg && D.mapInclude!==false);
+  const mapW = 50, mapH = mapW*360/640, mapX = PW-M-mapW, mapY = y-3;
+  if(hasMap){
+    try{ doc.addImage(D.mapImg,"JPEG",mapX,mapY,mapW,mapH); }catch(e){}
+    doc.setDrawColor(190); doc.setLineWidth(0.3); doc.rect(mapX,mapY,mapW,mapH); doc.setLineWidth(0.2);
+    doc.setFont("helvetica","normal"); doc.setFontSize(5.8); doc.setTextColor(140);
+    doc.text("Ubicazione  ·  © OpenStreetMap contributors",mapX,mapY+mapH+3);
+    colW0 = W-mapW-8;
+  }
   twoCol("Committente e responsabile dei lavori",D.committente,"Indirizzo cantiere",D.indirizzo);
   twoCol("Direzione Lavori",D.dl,"Coordinatore sicurezza (C.S.P.-C.S.E.)",D.cse);
+  colW0 = W;
+  if(hasMap) y = Math.max(y, mapY+mapH+7);
   twoCol("Professionisti intervenuti",D.professionisti,"Orario",D.ora+" — "+D.oraFine);
   y+=2;
 
@@ -1899,21 +1968,6 @@ function styleB(){
   y+=4;
 
   h2("Lavorazioni in corso"); para(D.lavorazioni);
-
-  h2("Verifiche di conformità");
-  const checks=[["Documentazione richiesta in cantiere",D.doc],["Organizzazione del cantiere come indicato",D.org],["Modalità operative ed uso dei DPI",D.dpi]];
-  checks.forEach(([l,v])=>{
-    if(y+10>PH-22){ doc.addPage(); y=M+6; }
-    const ok=v==="Sì";
-    ok?doc.setFillColor(22,163,74):doc.setFillColor(220,38,38);
-    doc.roundedRect(M,y-3.4,13,6.4,1.4,1.4,"F");
-    doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(7.4);
-    doc.text(ok?"SÌ":"NO",M+6.5,y+1,{align:"center"});
-    doc.setTextColor(35); doc.setFont("helvetica","normal"); doc.setFontSize(9);
-    doc.text(l,M+18,y+0.8);
-    y+=10;
-  });
-  y+=2;
 
   h2("Segnalazioni / azioni correttive"); para(D.segnalazioni);
 
@@ -1947,6 +2001,22 @@ function styleB(){
   doc.text("Foto effettuate durante il sopralluogo: "+D.foto+" — allegate in coda al presente verbale.",M,y);
   y+=12;
 
+  h2("Verifiche di conformità");
+  const checks=[["Documentazione richiesta in cantiere",D.doc],["Organizzazione del cantiere come indicato",D.org],["Modalità operative ed uso dei DPI",D.dpi]];
+  checks.forEach(([l,v])=>{
+    if(y+10>PH-22){ doc.addPage(); y=M+6; }
+    const ok=v==="Sì";
+    ok?doc.setFillColor(22,163,74):doc.setFillColor(220,38,38);
+    doc.roundedRect(M,y-3.4,13,6.4,1.4,1.4,"F");
+    doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(7.4);
+    doc.text(ok?"SÌ":"NO",M+6.5,y+1,{align:"center"});
+    doc.setTextColor(35); doc.setFont("helvetica","normal"); doc.setFontSize(9);
+    doc.text(l,M+18,y+0.8);
+    y+=10;
+  });
+  y+=2;
+  y+=6;
+
   if(y+80>PH-22){ doc.addPage(); y=M+6; }
   h2("Firme per ricevuta comunicazione");
   const colW=(W-10)/2; let cx=M, row=0;
@@ -1967,7 +2037,7 @@ function styleB(){
   doc.setFont("helvetica","normal"); doc.setFontSize(8.4); doc.setTextColor(110);
   doc.text("Il sopralluogo si è concluso il "+D.dataFine+" alle ore "+D.oraFine+".",M,y);
 
-  mapPage(doc); photoPages(doc); footer(doc); return doc;
+  photoPages(doc); footer(doc); return doc;
 }
 
 function mapPage(doc){
