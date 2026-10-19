@@ -910,8 +910,9 @@ function rememberAnagrafica(){
   // e impresa gia' nota non si manda nulla.
   imprese.forEach(r=>{
     if(!r.nome || (r.tipo||"impresa")!=="impresa") return;
-    const nome = r.nome.trim(), tit = (r.titolare||"").trim();
-    const coppie = coppieImprese();
+    const dv = dividiImpresa(r.nome);
+    const nome = dv.nome, tit = (r.titolare||"").trim() || dv.titolare;
+    const coppie = listaPresenti().map(x=>({impresa:x.nome, titolare:x.titolare}));
     const stessa = coppie.filter(x=>x.impresa.toLowerCase()===nome.toLowerCase());
     const giaNota = tit
       ? stessa.some(x=>(x.titolare||"").toLowerCase()===tit.toLowerCase())
@@ -1055,9 +1056,17 @@ function allClienti(){
   merged.forEach(c=>{ const k=c.cliente.toLowerCase(); if(!seen.has(k)){ seen.add(k); out.push(c); } });
   return out;
 }
+// "Zulian costruzioni, Vanessa Guzman" -> impresa + titolare
+function dividiImpresa(str){
+  const t = String(str||"").trim(), i = t.indexOf(",");
+  return i<0 ? {nome:t, titolare:""} : {nome:t.slice(0,i).trim(), titolare:t.slice(i+1).trim()};
+}
 // tutte le coppie impresa+titolare note (prima le usate di recente in locale, poi quelle del foglio)
 function coppieImprese(){
-  const merged = [...(localAnagrafica().imprese||[]), ...sheetAnagrafica.imprese];
+  const merged = [...(localAnagrafica().imprese||[]), ...sheetAnagrafica.imprese].map(c=>{
+    const d = dividiImpresa(c.impresa);
+    return {impresa:d.nome, titolare:(c.titolare||"").trim() || d.titolare};
+  });
   const seen = new Set(); const out = [];
   merged.forEach(c=>{
     if(!c.impresa) return;
@@ -1081,7 +1090,25 @@ function titoliDi(nome){ return titolariDi(nome); }
 function titolariDi(nome){
   const k = String(nome||"").trim().toLowerCase();
   if(!k) return [];
-  return [...new Set(coppieImprese().filter(c=>c.impresa.toLowerCase()===k && c.titolare).map(c=>c.titolare))];
+  return [...new Set(listaPresenti().filter(c=>c.nome.toLowerCase()===k && c.titolare).map(c=>c.titolare))];
+}
+// elenco per "Presenti": una voce per ogni coppia impresa+titolare ("Zulian costruzioni, Vanessa Guzman")
+function listaPresenti(){
+  const out = new Map();
+  allNomi().forEach(it=>{
+    const d = dividiImpresa(it.nome);
+    const tit = [...it.titolari]; if(d.titolare && !tit.includes(d.titolare)) tit.push(d.titolare);
+    (tit.length ? tit : [""]).forEach(t=>{
+      const k = (d.nome+"|"+t).toLowerCase();
+      if(!out.has(k)) out.set(k, {nome:d.nome, titolare:t, indirizzo:it.indirizzo||"", _k:d.nome+(t?", "+t:"")});
+    });
+  });
+  const arr = [...out.values()];
+  // una voce "solo impresa" e' inutile se esistono gia' le voci con titolare
+  return arr.filter(x=> x.titolare || !arr.some(y=>y.titolare && y.nome.toLowerCase()===x.nome.toLowerCase()));
+}
+function labelPresente(it){
+  return `${escHtml(it.nome)}${it.titolare ? ", "+escHtml(it.titolare) : ""}${it.indirizzo ? `<small>${escHtml(it.indirizzo)}</small>` : ""}`;
 }
 function allDirettori(){
   const local = localAnagrafica().direttori || [];
@@ -1480,7 +1507,7 @@ Regole:
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
-    if(res.ok || ![429,500,502,503,504].includes(res.status)) break;
+    if(res.ok || ![500,502,503,504].includes(res.status)) break;   // 429 = quota: inutile insistere
     await new Promise(r=>setTimeout(r, 1500*(tentativo+1)));
   }
 
@@ -1514,7 +1541,9 @@ function wirePolishButton(){
       if(e.message === "no-key"){
         hint.textContent = "Configura la tua chiave Gemini in Impostazioni (icona in alto) per usare questa funzione.";
       } else {
-        hint.textContent = /\b(503|429|500|502|504)\b/.test(e.message)
+        hint.textContent = /\b429\b/.test(e.message)
+          ? "Limite di richieste Gemini raggiunto (quota gratuita). Aspetta circa un minuto e riprova; se si ripete, hai finito la quota giornaliera: riprova domani o cambia modello in Impostazioni."
+          : /\b(503|500|502|504)\b/.test(e.message)
           ? "Gemini è momentaneamente sovraccarico (non è un problema della chiave). Riprova tra qualche secondo."
           : "Errore Gemini: " + e.message + " — controlla la chiave/modello in Impostazioni.";
         console.error("Dettaglio errore Gemini:", e);
@@ -1557,10 +1586,10 @@ function wireMics(){
 // ---------- Tabella dinamica (imprese) ----------
 function renderRows(s){
   const box = document.getElementById("rowsBox");
+  imprese.forEach(r=>{ r.tipo = "impresa"; });
   box.innerHTML = imprese.map((row,i)=>{
-    const tipo = row.tipo || "impresa";
-    const chips = [["impresa","Impresa"],["altro","Altro (persona)"]]
-      .map(([v,t])=>`<button type="button" class="chip ${tipo===v?'sel':''}" data-tipo="${v}" data-row="${i}">${t}</button>`).join("");
+    const tipo = "impresa";
+    const chips = "";
     let extra = "";
     if(tipo==="prof"){
       extra = `<label class="field-label">Titolo (non viene salvato in anagrafica)</label><div class="chip-row">${TITOLI_PROFESSIONALI.map(t=>
@@ -1576,12 +1605,11 @@ function renderRows(s){
     }
     return `<div class="table-row">
       ${imprese.length>1?`<button class="rm" data-i="${i}">✕</button>`:""}
-      <label class="field-label">Nome (impresa o persona)</label>
+      <label class="field-label">Nome impresa</label>
       <div class="sugg-wrap">
-        <input type="text" autocomplete="off" data-row="${i}" data-col="nome" id="imp_${i}_nome" value="${escHtml(row.nome||'')}" placeholder="Cerca in tutta l'anagrafica...">
+        <input type="text" autocomplete="off" data-row="${i}" data-col="nome" id="imp_${i}_nome" value="${escHtml(row.nome||'')}" placeholder="Cerca impresa...">
         <div class="sugg-box" id="impSuggest_${i}"></div>
       </div>
-      <div class="chip-row">${chips}</div>
       ${extra}
     </div>`;
   }).join("");
@@ -1618,16 +1646,20 @@ function renderRows(s){
     const input = document.getElementById(`imp_${i}_nome`);
     const sbox = document.getElementById(`impSuggest_${i}`);
     if(!input || !sbox) return;
-    wireSuggest(input, sbox, allNomi, labelNome, (picked)=>{
+    wireSuggest(input, sbox, listaPresenti, labelPresente, (picked)=>{
       const r = imprese[i];
-      r.nome = picked.nome;
-      const tit = titoliDi(picked.nome);
-      if(picked.titolari && picked.titolari.length){
-        r.tipo = "impresa"; if(!r.titolare) r.titolare = tit[0] || picked.titolari[0];
-      } else if(titoloDaNome(picked.nome)){
-        r.tipo = "prof"; r.titolo = titoloDaNome(picked.nome).abbr; r.nome = senzaTitolo(picked.nome);
-      }
+      r.nome = picked.nome; r.tipo = "impresa";
+      if(picked.titolare) r.titolare = picked.titolare;
       renderRows(s);
+    });
+    // se scrivi a mano "Impresa, Persona" la parte dopo la virgola va in titolare
+    input.addEventListener("change", ()=>{
+      const d = dividiImpresa(input.value);
+      if(input.value.includes(",")){
+        imprese[i].nome = d.nome;
+        if(d.titolare && !(imprese[i].titolare||"").trim()) imprese[i].titolare = d.titolare;
+        renderRows(s);
+      }
     });
   });
   wireMics();
