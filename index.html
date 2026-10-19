@@ -41,6 +41,7 @@
   .question{font-size:18px; font-weight:700; line-height:1.35; margin-bottom:14px;}
   input[type=text], input[type=date], textarea{width:100%; padding:12px 13px; border-radius:11px; border:1.5px solid var(--border); background:var(--bg); color:var(--text); font-size:16px; font-family:inherit; margin-bottom:10px;}
   textarea{min-height:90px; resize:vertical;}
+  select{width:100%; padding:12px 13px; border-radius:11px; border:1.5px solid var(--border); background:var(--bg); color:var(--text); font-size:15px; font-family:inherit; margin-bottom:10px;}
   input:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
   label.field-label{font-size:12px; font-weight:600; color:var(--muted); display:block; margin-bottom:4px;}
   .yn-row{display:flex; gap:12px; margin-top:4px;}
@@ -109,6 +110,9 @@
   .signer-card{border:1.5px solid var(--border); border-radius:13px; padding:14px; margin-bottom:14px; position:relative;}
   .signer-card .rm{position:absolute; top:10px; right:10px; background:none; border:none; color:var(--muted); font-size:15px; cursor:pointer;}
   .quick-add-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+  .chip-row{display:flex; gap:8px; flex-wrap:wrap; margin:2px 0 10px;}
+  .chip{padding:7px 13px; border-radius:99px; border:1.5px solid var(--border); background:var(--bg); font-size:13px; font-weight:600; cursor:pointer; color:var(--text);}
+  .chip.sel{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
   .quick-add{padding:8px 12px; border-radius:99px; border:1.5px solid var(--border); background:var(--bg); font-size:13px; font-weight:600; cursor:pointer; color:var(--text);}
   .quick-add.sel{background:var(--text); color:var(--card); border-color:var(--text);}
 
@@ -249,8 +253,7 @@ const steps = [
 
   {type:"group", id:"redattore", label:"Chi redige", question:"Chi effettua il sopralluogo", fields:[
     {id:"direzioneLavori", label:"Direzione Lavori", type:"text", suggest:"direttori", def: ()=> DL_DEFAULT},
-    {id:"coordinatoreSicurezza", label:"Coordinatore della Sicurezza C.S.P.-C.S.E.", type:"text", suggest:"coordinatori", def: ()=> DL_DEFAULT},
-    {id:"professionisti", label:"Altri professionisti intervenuti nel verbale", type:"text", titoloPicker:true}
+    {id:"coordinatoreSicurezza", label:"Coordinatore della Sicurezza C.S.P.-C.S.E.", type:"text", suggest:"coordinatori", def: ()=> DL_DEFAULT}
   ]},
 
   {type:"dyntable", id:"imprese", label:"Presenti", question:"Erano presenti (imprese e persone)", columns:[
@@ -309,7 +312,7 @@ function render(){
   if(s.type==="text"){
     if(s.id==="committente"){
       inner += `<div class="sugg-wrap"><input type="text" id="field" autocomplete="off" value="${answers[s.id]||''}" placeholder="Inizia a scrivere il nome..."><div class="sugg-box" id="clienteSuggest"></div></div>
-      <p class="hint">Suggerisce clienti già usati in verbali precedenti.</p>`;
+      <p class="hint">Un'unica ricerca su tutta l'anagrafica: committenti, imprese e professionisti.</p>`;
     } else {
       inner += `<input type="text" id="field" value="${answers[s.id]||''}">`;
     }
@@ -365,7 +368,7 @@ function render(){
         return `<label class="field-label">${f.label}</label><input type="date" id="gf_${f.id}" value="${val}">`;
       }
       if(f.suggest){
-        return `<label class="field-label">${f.label}</label><div class="sugg-wrap"><input type="text" autocomplete="off" id="gf_${f.id}" value="${val}"><div class="sugg-box" id="sugg_${f.id}"></div></div>`;
+        return `<label class="field-label">${f.label}</label><div class="sugg-wrap"><input type="text" autocomplete="off" id="gf_${f.id}" value="${val}"><div class="sugg-box" id="sugg_${f.id}"></div></div><div class="chip-row" id="titChips_${f.id}"></div>`;
       }
       if(f.titoloPicker){
         return `<label class="field-label">${f.label}</label>
@@ -421,12 +424,9 @@ function render(){
       </div>`;
   } else if(s.type==="signers"){
     const impreseQuick = imprese.filter(r=>r.nome||r.titolare).map((r,i)=>
-      `<button class="quick-add" data-impresa-i="${i}">+ ${r.nome || r.titolare}</button>`
+      `<button class="quick-add" data-impresa-i="${i}">+ ${escHtml(nomePresente(r) || r.titolare)}</button>`
     ).join("");
-    const profList = parseProfessionisti(answers.professionisti);
-    const profQuick = profList.map((p,i)=>
-      `<button class="quick-add" data-prof-i="${i}">+ ${p.nome}</button>`
-    ).join("");
+    const profQuick = "";
     inner += `<div class="quick-add-row">
       <button class="quick-add" data-role="Committente e Responsabile dei lavori">+ Committente</button>
       <button class="quick-add" data-role="Direzione Lavori">+ D.L.</button>
@@ -509,9 +509,9 @@ function wireStep(s){
   if(s.type==="text" && s.id==="committente"){
     const input = document.getElementById("field");
     const box = document.getElementById("clienteSuggest");
-    wireSuggest(input, box, allClienti, c=>c.cliente, (picked)=>{
-      input.value = picked.cliente;
-      answers.committente = picked.cliente;
+    wireSuggest(input, box, allNomi, labelNome, (picked)=>{
+      input.value = picked.nome;
+      answers.committente = picked.nome;
       if(picked.indirizzo){
         answers.indirizzo = picked.indirizzo;
         const parsed = parseIndirizzo(picked.indirizzo);
@@ -700,8 +700,26 @@ function wireStep(s){
       const input = document.getElementById("gf_"+f.id);
       const box = document.getElementById("sugg_"+f.id);
       if(!input || !box) return;
-      const listFn = f.suggest==="direttori" ? allDirettori : allCoordinatori;
-      wireSuggest(input, box, listFn, name=>name, (picked)=>{ input.value = picked; });
+      wireSuggest(input, box, allNomi, labelNome, (picked)=>{
+        const t = titoloDaNome(input.value);
+        input.value = (t ? t.abbr+" " : "") + picked.nome;
+      });
+      // titolo professionale: si sceglie ogni volta, non si salva in anagrafica
+      const chipsBox = document.getElementById("titChips_"+f.id);
+      if(chipsBox){
+        const draw = ()=>{
+          const cur = titoloDaNome(input.value);
+          chipsBox.innerHTML = TITOLI_PROFESSIONALI.map(t=>`<button type="button" class="chip ${cur&&cur.abbr===t.abbr?'sel':''}" data-t="${t.abbr}">${t.abbr}</button>`).join("");
+          chipsBox.querySelectorAll("[data-t]").forEach(b=> b.addEventListener("click", ()=>{
+            const c = titoloDaNome(input.value);
+            const resto = senzaTitolo(input.value);
+            input.value = (c && c.abbr===b.dataset.t) ? resto : b.dataset.t+" "+resto;
+            draw();
+          }));
+        };
+        draw();
+        input.addEventListener("input", draw);
+      }
     });
     s.fields.filter(f=>f.titoloPicker).forEach(f=>{
       const btn = document.getElementById("addProfBtn");
@@ -756,7 +774,9 @@ function wireStep(s){
       b.addEventListener("click", ()=>{
         const row = imprese[+b.dataset.impresaI];
         if(!row) return;
-        addSigner(row.titolare || "", row.nome || "Impresa presente");
+        if((row.tipo||"impresa")==="impresa") addSigner(row.titolare || "", row.nome || "Impresa presente");
+        else if(row.tipo==="prof"){ const t = TITOLI_PROFESSIONALI.find(x=>x.abbr===row.titolo); addSigner(nomePresente(row), t ? t.nome : "Professionista"); }
+        else addSigner(row.nome, "");
       });
     });
     document.querySelectorAll(".quick-add[data-prof-i]").forEach(b=>{
@@ -839,6 +859,9 @@ function numeroDaSheet(cliente){
   const n = row ? parseInt(row.numero, 10) : 0;
   return isNaN(n) ? 0 : n;
 }
+function professionistiPresenti(){
+  return imprese.filter(r=>r.tipo==="prof" && r.nome && r.nome.trim()).map(r=>nomePresente(r)).join(", ");
+}
 function suggestNumero(cliente){
   if(!cliente) return "";
   const c = getContatori();
@@ -883,7 +906,7 @@ function rememberAnagrafica(){
   // un'impresa nota crea una nuova coppia (il vecchio non si cancella); con titolare vuoto
   // e impresa gia' nota non si manda nulla.
   imprese.forEach(r=>{
-    if(!r.nome) return;
+    if(!r.nome || (r.tipo||"impresa")!=="impresa") return;
     const nome = r.nome.trim(), tit = (r.titolare||"").trim();
     const coppie = coppieImprese();
     const stessa = coppie.filter(x=>x.impresa.toLowerCase()===nome.toLowerCase());
@@ -901,30 +924,26 @@ function rememberAnagrafica(){
   });
   a.imprese = a.imprese.slice(0,300);
 
-  if(answers.direzioneLavori){
-    const key = answers.direzioneLavori.toLowerCase();
-    direttoreNuovo = !(a.direttori.some(n=>n.toLowerCase()===key) || sheetAnagrafica.direttori.some(n=>n.toLowerCase()===key));
-    a.direttori = rememberName(a.direttori, answers.direzioneLavori);
+  // D.L. e C.S.P.: il default (Geom. Michele Pavese) non si salva; uno nuovo si salva SENZA titolo
+  const nomiNoti = new Set(allNomi().map(x=>x.nome.toLowerCase()));
+  const defKey = senzaTitolo(DL_DEFAULT).toLowerCase();
+  function nuovoTecnico(raw){
+    const n = senzaTitolo(raw); if(!n) return "";
+    const k = n.toLowerCase();
+    if(k===defKey || nomiNoti.has(k)) return "";
+    nomiNoti.add(k);
+    return n;
   }
-  if(answers.coordinatoreSicurezza){
-    const key = answers.coordinatoreSicurezza.toLowerCase();
-    coordinatoreNuovo = !(a.coordinatori.some(n=>n.toLowerCase()===key) || sheetAnagrafica.coordinatori.some(n=>n.toLowerCase()===key));
-    a.coordinatori = rememberName(a.coordinatori, answers.coordinatoreSicurezza);
-  }
+  const dl = nuovoTecnico(answers.direzioneLavori);
+  const csp = nuovoTecnico(answers.coordinatoreSicurezza);
+  direttoreNuovo = !!dl; coordinatoreNuovo = !!csp;
+  if(dl) a.professionisti = rememberName(a.professionisti||[], dl);
+  if(csp) a.professionisti = rememberName(a.professionisti||[], csp);
 
-  // professionisti aggiunti col selettore titolo+nome: si salva la stringa già completa
-  // (es. "Geom. Federico Rossi") e, separatamente, la parola per esteso del titolo
-  // (es. "Geometra") per chi vuole comunque compilare la colonna "ruolo".
-  professionistiList.forEach(p=>{
-    const combinato = p.titolo ? `${p.titolo} ${p.nome}` : p.nome;
-    const key = combinato.toLowerCase();
-    const giaNoto = a.professionisti.some(n=>n.toLowerCase()===key);
-    if(!giaNoto){
-      const trovato = TITOLI_PROFESSIONALI.find(t=>t.abbr.toLowerCase()===String(p.titolo||"").toLowerCase());
-      const ruoloEsteso = trovato ? trovato.nome : (p.titolo || "");
-      professionistiNuovi.push({combinato, ruolo: ruoloEsteso});
-    }
-    a.professionisti = rememberName(a.professionisti, combinato);
+  // professionisti presenti: si salva solo il nome (Geom./Arch./Ing. si sceglie ogni volta)
+  imprese.filter(r=>r.tipo==="prof" && r.nome && r.nome.trim()).forEach(r=>{
+    const n = nuovoTecnico(r.nome);
+    if(n){ professionistiNuovi.push({combinato:n}); a.professionisti = rememberName(a.professionisti||[], n); }
   });
 
   saveLocalAnagrafica(a);
@@ -935,9 +954,9 @@ function rememberAnagrafica(){
     pushToSheet("cliente", {cliente:answers.committente, indirizzo:answers.indirizzo||""});
   }
   impreseNuove.forEach(r=> pushToSheet("impresa", {impresa:r.impresa, titolare:r.titolare}));
-  if(direttoreNuovo) pushToSheet("direttore", {direttore: answers.direzioneLavori});
-  if(coordinatoreNuovo) pushToSheet("coordinatore", {coordinatore: answers.coordinatoreSicurezza});
-  professionistiNuovi.forEach(p=> pushToSheet("professionista", {professionista: p.combinato, ruolo: p.ruolo}));
+  if(direttoreNuovo) pushToSheet("direttore", {direttore: dl});
+  if(coordinatoreNuovo) pushToSheet("coordinatore", {coordinatore: csp});
+  professionistiNuovi.forEach(p=> pushToSheet("professionista", {professionista: p.combinato}));
 }
 
 async function pushToSheet(type, data){
@@ -996,11 +1015,30 @@ async function loadAnagraficaSheet(){
     const res = await fetch(cfg.sheetUrl, {cache:"no-store"});
     const text = await res.text();
     const rows = parseCSV(text);
-    sheetAnagrafica.clienti = rows.filter(r=>r.cliente).map(r=>({cliente:r.cliente, indirizzo:r.indirizzo||"", numero:pickCol(r,ALIASES.numero)}));
-    sheetAnagrafica.imprese = rows.filter(r=>r.impresa).map(r=>({impresa:r.impresa, titolare:r.titolare||""}));
-    sheetAnagrafica.direttori = [...new Set(rows.map(r=>pickCol(r,ALIASES.direttore)).filter(Boolean))];
-    sheetAnagrafica.coordinatori = [...new Set(rows.map(r=>pickCol(r,ALIASES.coordinatore)).filter(Boolean))];
-    // (colonna "ruolo" non più necessaria: i professionisti si aggiungono col selettore titolo+nome)
+    const nomeDi = r=> pickCol(r, ["nome completo","nome","nominativo"]);
+    const nuovo = rows.length && ("nome completo" in rows[0] || "nome" in rows[0] || "nominativo" in rows[0]);
+    if(nuovo){
+      // foglio a 4 colonne: N. VERBALE | NOME COMPLETO | INDIRIZZO | TITOLARE
+      const mappa = new Map();
+      rows.forEach(r=>{
+        const n = nomeDi(r); if(!n) return;
+        const k = n.toLowerCase();
+        const e = mappa.get(k) || {cliente:n, indirizzo:"", numero:""};
+        if(!e.indirizzo && r.indirizzo) e.indirizzo = r.indirizzo;
+        const num = parseInt(pickCol(r,ALIASES.numero),10);
+        if(!isNaN(num) && num > (parseInt(e.numero,10)||0)) e.numero = String(num);
+        mappa.set(k,e);
+      });
+      sheetAnagrafica.clienti = [...mappa.values()];
+      sheetAnagrafica.imprese = rows.filter(r=>nomeDi(r) && r.titolare).map(r=>({impresa:nomeDi(r), titolare:r.titolare}));
+      sheetAnagrafica.direttori = []; sheetAnagrafica.coordinatori = []; sheetAnagrafica.professionisti = [];
+    } else {
+      sheetAnagrafica.clienti = rows.filter(r=>r.cliente).map(r=>({cliente:r.cliente, indirizzo:r.indirizzo||"", numero:pickCol(r,ALIASES.numero)}));
+      sheetAnagrafica.imprese = rows.filter(r=>r.impresa).map(r=>({impresa:r.impresa, titolare:r.titolare||""}));
+      sheetAnagrafica.direttori = [...new Set(rows.map(r=>pickCol(r,ALIASES.direttore)).filter(Boolean))];
+      sheetAnagrafica.coordinatori = [...new Set(rows.map(r=>pickCol(r,ALIASES.coordinatore)).filter(Boolean))];
+      sheetAnagrafica.professionisti = rows.filter(r=>r.professionista).map(r=>({nome:r.professionista, ruolo:r.ruolo||""}));
+    }
   }catch(e){
     console.warn("Anagrafica: non sono riuscito a leggere il Google Sheet.", e);
   }
@@ -1036,6 +1074,7 @@ function allImprese(){
   });
   return out;
 }
+function titoliDi(nome){ return titolariDi(nome); }
 function titolariDi(nome){
   const k = String(nome||"").trim().toLowerCase();
   if(!k) return [];
@@ -1112,6 +1151,50 @@ const TITOLI_PROFESSIONALI = [
   {abbr:"Arch.", nome:"Architetto"},
   {abbr:"Ing.", nome:"Ingegnere"}
 ];
+
+function titoloDaNome(nome){
+  const m = String(nome||"").trim().match(/^(geom|arch|ing)\b\.?/i);
+  if(!m) return null;
+  return TITOLI_PROFESSIONALI.find(t=>t.abbr.toLowerCase().startsWith(m[1].toLowerCase())) || null;
+}
+function senzaTitolo(nome){ return String(nome||"").trim().replace(/^(geom|arch|ing)\b\.?\s*/i,""); }
+// "Gianluca Re" + ruolo "Architetto" -> "Arch. Gianluca Re"
+function nomeConTitolo(nome, ruolo){
+  const n = String(nome||"").trim();
+  if(titoloDaNome(n)) return n;
+  const r = String(ruolo||"").trim().toLowerCase();
+  const t = r && TITOLI_PROFESSIONALI.find(t=> r.startsWith(t.abbr.replace(".","").toLowerCase()));
+  return t ? `${t.abbr} ${n}` : n;
+}
+// UNICA ricerca su tutta l'anagrafica (NOME COMPLETO): committenti, imprese, professionisti, D.L.
+function allNomi(){
+  const mappa = new Map();
+  const add = (nome, extra)=>{
+    const n = String(nome||"").trim(); if(!n) return;
+    const k = n.toLowerCase();
+    const e = mappa.get(k) || {nome:n, indirizzo:"", titolari:[], _k:n};
+    if(extra && extra.indirizzo && !e.indirizzo) e.indirizzo = extra.indirizzo;
+    if(extra && extra.titolare && !e.titolari.includes(extra.titolare)) e.titolari.push(extra.titolare);
+    mappa.set(k,e);
+  };
+  add(senzaTitolo(DL_DEFAULT));
+  (localAnagrafica().clienti||[]).forEach(c=> add(c.cliente, {indirizzo:c.indirizzo}));
+  sheetAnagrafica.clienti.forEach(c=> add(c.cliente, {indirizzo:c.indirizzo}));
+  coppieImprese().forEach(c=> add(c.impresa, {titolare:c.titolare}));
+  (localAnagrafica().professionisti||[]).forEach(n=> add(senzaTitolo(n)));
+  (sheetAnagrafica.professionisti||[]).forEach(p=> add(senzaTitolo(typeof p==="string" ? p : p.nome)));
+  (sheetAnagrafica.direttori||[]).concat(sheetAnagrafica.coordinatori||[]).forEach(n=> add(senzaTitolo(n)));
+  return [...mappa.values()];
+}
+function labelNome(it){
+  const sub = it.indirizzo || (it.titolari.length ? "Titolare: "+it.titolari.join(", ") : "");
+  return `${escHtml(it.nome)}${sub ? `<small>${escHtml(sub)}</small>` : ""}`;
+}
+// nome da mostrare/stampare per una riga di "Presenti": i professionisti col titolo scelto
+function nomePresente(r){
+  if(r.tipo==="prof") return ((r.titolo ? r.titolo+" " : "") + senzaTitolo(r.nome)).trim();
+  return (r.nome||"").trim();
+}
 
 function openTitoloPicker(fieldId){
   const wrap = document.createElement("div");
@@ -1211,7 +1294,10 @@ function wireSuggest(inputEl, boxEl, listOrFn, labelFn, onPick, multi, showAll){
     const raw = multi ? inputEl.value.split(",").pop() : inputEl.value;
     const q = raw.trim().toLowerCase();
     if(!q && !showAll){ boxEl.classList.remove("show"); boxEl.innerHTML=""; return; }
-    const matches = list.filter(item=> labelFn(item).toLowerCase().includes(q)).slice(0,6);
+    const keyOf = it=> (it && it._k!==undefined) ? String(it._k) : labelFn(it);
+    const matches = list.filter(item=> keyOf(item).toLowerCase().includes(q))
+      .sort((a,b)=> (keyOf(b).toLowerCase().startsWith(q)?1:0) - (keyOf(a).toLowerCase().startsWith(q)?1:0))
+      .slice(0,8);
     if(!matches.length){ boxEl.classList.remove("show"); boxEl.innerHTML=""; return; }
     boxEl.innerHTML = matches.map((item,i)=>`<div class="opt" data-i="${i}">${labelFn(item)}</div>`).join("");
     boxEl.classList.add("show");
@@ -1351,9 +1437,14 @@ function openSettings(){
   });
 }
 
+
 // ---------- "Migliora con AI" — riformula il testo dettato con Gemini ----------
-async function polishWithGemini(rawText){
-  const cfg = getSettings();
+async function polishWithGemini(rawText, opts){
+  opts = opts || {};
+  const cfg = Object.assign({}, getSettings());
+  if(opts.key) cfg.geminiKey = opts.key;
+  if(opts.model) cfg.geminiModel = opts.model;
+  if(opts.prompt) cfg.geminiPrompt = opts.prompt;
   if(!cfg.geminiKey) throw new Error("no-key");
   const model = (cfg.geminiModel || "gemini-3.5-flash").trim();
   // La chiave via header (x-goog-api-key) fallisce il controllo CORS del browser
@@ -1451,31 +1542,34 @@ function wireMics(){
 // ---------- Tabella dinamica (imprese) ----------
 function renderRows(s){
   const box = document.getElementById("rowsBox");
-  box.innerHTML = imprese.map((row,i)=>`
-    <div class="table-row">
+  box.innerHTML = imprese.map((row,i)=>{
+    const tipo = row.tipo || "impresa";
+    const chips = [["impresa","Impresa"],["prof","Professionista"],["altro","Altro"]]
+      .map(([v,t])=>`<button type="button" class="chip ${tipo===v?'sel':''}" data-tipo="${v}" data-row="${i}">${t}</button>`).join("");
+    let extra = "";
+    if(tipo==="prof"){
+      extra = `<label class="field-label">Titolo (non viene salvato in anagrafica)</label><div class="chip-row">${TITOLI_PROFESSIONALI.map(t=>
+        `<button type="button" class="chip ${row.titolo===t.abbr?'sel':''}" data-titolo="${t.abbr}" data-row="${i}">${t.abbr}</button>`).join("")}</div>`;
+    } else if(tipo==="impresa"){
+      extra = `<label class="field-label">Nome titolare / preposto</label>
+        <div class="sugg-wrap">
+          <input type="text" autocomplete="off" data-row="${i}" data-col="titolare" id="imp_${i}_titolare" value="${escHtml(row.titolare||'')}">
+          <div class="sugg-box" id="titSuggest_${i}"></div>
+        </div>
+        <label class="field-label">N° addetti</label>
+        <input type="text" data-row="${i}" data-col="addetti" id="imp_${i}_addetti" value="${escHtml(row.addetti||'')}">`;
+    }
+    return `<div class="table-row">
       ${imprese.length>1?`<button class="rm" data-i="${i}">✕</button>`:""}
-      ${s.columns.map(c=>{
-        if(c.id==="nome"){
-          return `<label class="field-label">${c.label}</label>
-            <div class="sugg-wrap">
-              <input type="text" autocomplete="off" data-row="${i}" data-col="${c.id}" id="imp_${i}_${c.id}" value="${row[c.id]||''}">
-              <div class="sugg-box" id="impSuggest_${i}"></div>
-            </div>`;
-        }
-        if(c.id==="titolare"){
-          return `<label class="field-label">${c.label}</label>
-            <div class="sugg-wrap">
-              <input type="text" autocomplete="off" data-row="${i}" data-col="${c.id}" id="imp_${i}_${c.id}" value="${row[c.id]||''}">
-              <div class="sugg-box" id="titSuggest_${i}"></div>
-            </div>`;
-        }
-        return `<label class="field-label">${c.label}</label>
-          <div class="field-mic-row">
-            <input type="text" data-row="${i}" data-col="${c.id}" id="imp_${i}_${c.id}" value="${row[c.id]||''}">
-          </div>`;
-      }).join("")}
-    </div>
-  `).join("");
+      <label class="field-label">Nome (impresa o persona)</label>
+      <div class="sugg-wrap">
+        <input type="text" autocomplete="off" data-row="${i}" data-col="nome" id="imp_${i}_nome" value="${escHtml(row.nome||'')}" placeholder="Cerca in tutta l'anagrafica...">
+        <div class="sugg-box" id="impSuggest_${i}"></div>
+      </div>
+      <div class="chip-row">${chips}</div>
+      ${extra}
+    </div>`;
+  }).join("");
   box.querySelectorAll("input").forEach(inp=>{
     inp.addEventListener("input", e=>{
       const i=+e.target.dataset.row, c=e.target.dataset.col;
@@ -1485,24 +1579,40 @@ function renderRows(s){
   box.querySelectorAll(".rm").forEach(b=>{
     b.addEventListener("click", ()=>{ imprese.splice(+b.dataset.i,1); renderRows(s); });
   });
+  box.querySelectorAll("[data-tipo]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const r = imprese[+b.dataset.row]; r.tipo = b.dataset.tipo;
+      if(r.tipo==="prof"){ const t = titoloDaNome(r.nome); if(t){ r.titolo = t.abbr; r.nome = senzaTitolo(r.nome); } }
+      renderRows(s);
+    });
+  });
+  box.querySelectorAll("[data-titolo]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const r = imprese[+b.dataset.row];
+      r.titolo = (r.titolo === b.dataset.titolo) ? "" : b.dataset.titolo;
+      renderRows(s);
+    });
+  });
   imprese.forEach((row,i)=>{
     const tIn = document.getElementById(`imp_${i}_titolare`), tBox = document.getElementById(`titSuggest_${i}`);
     if(tIn && tBox){
-      wireSuggest(tIn, tBox, ()=>titolariDi(imprese[i].nome).map(t=>({t})), x=>x.t, (picked)=>{
+      wireSuggest(tIn, tBox, ()=>titolariDi(imprese[i].nome).map(t=>({t, _k:t})), x=>escHtml(x.t), (picked)=>{
         tIn.value = picked.t; imprese[i].titolare = picked.t;
       }, false, true);
     }
     const input = document.getElementById(`imp_${i}_nome`);
     const sbox = document.getElementById(`impSuggest_${i}`);
     if(!input || !sbox) return;
-    wireSuggest(input, sbox, allImprese(), c=>c.impresa, (picked)=>{
-      input.value = picked.impresa;
-      imprese[i].nome = picked.impresa;
-      if(picked.titolare && !imprese[i].titolare){
-        imprese[i].titolare = picked.titolare;
-        const tEl = document.getElementById(`imp_${i}_titolare`);
-        if(tEl) tEl.value = picked.titolare;
+    wireSuggest(input, sbox, allNomi, labelNome, (picked)=>{
+      const r = imprese[i];
+      r.nome = picked.nome;
+      const tit = titoliDi(picked.nome);
+      if(picked.titolari && picked.titolari.length){
+        r.tipo = "impresa"; if(!r.titolare) r.titolare = tit[0] || picked.titolari[0];
+      } else if(titoloDaNome(picked.nome)){
+        r.tipo = "prof"; r.titolo = titoloDaNome(picked.nome).abbr; r.nome = senzaTitolo(picked.nome);
       }
+      renderRows(s);
     });
   });
   wireMics();
@@ -1845,7 +1955,12 @@ function setupSigCanvas(id){
 // ---------- Revisione ----------
 function renderReview(){
   const box = document.getElementById("reviewBox");
-  const impreseTxt = imprese.filter(r=>r.nome||r.titolare).map(r=>`${r.nome||'-'} · ${r.titolare||'-'} · ${r.addetti||'-'} addetti`).join("\n") || "—";
+  const impreseTxt = imprese.filter(r=>r.nome||r.titolare).map(r=>{
+    const t = r.tipo||"impresa";
+    if(t==="prof") return `${nomePresente(r)} · professionista`;
+    if(t==="altro") return `${r.nome}`;
+    return `${r.nome||'-'} · ${r.titolare||'-'} · ${r.addetti||'-'} addetti`;
+  }).join("\n") || "—";
   const firmatariTxt = signers.map(sg=>`${sg.nombre||'(senza nome)'} — ${sg.rol||'—'} ${sg.firma?'✓ firmato':'(non firmato)'}`).join("\n") || "—";
   const rows = [
     ["Tipo di verbale", answers.tipoVerbale],
@@ -1877,9 +1992,9 @@ function buildData(){
     numero: answers.numero||"", data: fmtDate(answers.data), ora: answers.ora||"",
     dataFine: fmtDate(answers.dataFine), oraFine: answers.oraFine||"",
     dl: answers.direzioneLavori||"", cse: answers.coordinatoreSicurezza||"",
-    professionisti: answers.professionisti||"",
+    professionisti: professionistiPresenti(),
     committente: answers.committente||"", indirizzo: answers.indirizzo||"",
-    imprese: imprese.filter(r=>r.nome||r.titolare||r.addetti).map(r=>({n:r.nome||"", t:r.titolare||"", a:r.addetti||""})),
+    imprese: imprese.filter(r=>r.nome||r.titolare||r.addetti).map(r=>{ const im=(r.tipo||"impresa")==="impresa"; return {n:nomePresente(r), t:im?(r.titolare||""):"", a:im?(r.addetti||""):""}; }),
     lavorazioni: answers.lavorazioni||"",
     doc: answers.docPresente||"", org: answers.orgRispettata||"", dpi: answers.dpiRispettato||"",
     segnalazioni: answers.segnalazioni||"",
@@ -2155,7 +2270,7 @@ async function saveVerbaleToOdoo(pdfBlob, pdfFilename){
     data: answers.data, ora: answers.ora, dataFine: answers.dataFine, oraFine: answers.oraFine,
     committente: answers.committente, indirizzo: answers.indirizzo,
     direzioneLavori: answers.direzioneLavori, coordinatoreSicurezza: answers.coordinatoreSicurezza,
-    professionisti: answers.professionisti,
+    professionisti: professionistiPresenti(),
     lavorazioni: answers.lavorazioni,
     docPresente: answers.docPresente, orgRispettata: answers.orgRispettata, dpiRispettato: answers.dpiRispettato,
     segnalazioni: answers.segnalazioni,
